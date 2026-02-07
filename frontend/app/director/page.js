@@ -2,7 +2,7 @@
 
 export const dynamic = "force-dynamic";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Component } from "react";
 import { getAIValue } from "@/lib/aiProvidersConfig";
 import Topbar from "@/components/Topbar";
 import Card from "@/components/ui/Card";
@@ -10,6 +10,7 @@ import Button from "@/components/ui/Button";
 import Badge from "@/components/ui/Badge";
 import Textarea from "@/components/ui/Textarea";
 import EmptyState from "@/components/ui/EmptyState";
+import Link from "next/link";
 
 const PRESETS = [
   { id: "epic", label: "Short Épico" },
@@ -17,12 +18,53 @@ const PRESETS = [
   { id: "calm", label: "Storytelling Calmado" },
 ];
 
-export default function DirectorPage() {
+const CHAR_WARNING = 3000;
+const CHAR_LIMIT = 5000;
+
+class ErrorBoundary extends Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+
+  static getDerivedStateFromError(error) {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error, errorInfo) {
+    console.error("Director Error Boundary:", error, errorInfo);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div style={{ padding: "var(--sp-6)", maxWidth: 600, margin: "0 auto" }}>
+          <Card style={{ padding: "var(--sp-5)", textAlign: "center" }}>
+            <div style={{ fontSize: "48px", marginBottom: "var(--sp-4)" }}>⚠️</div>
+            <h2 style={{ fontSize: "16px", fontWeight: 600, marginBottom: "var(--sp-2)", color: "var(--text)" }}>
+              Ocurrió un error al analizar el guion
+            </h2>
+            <p style={{ fontSize: "12px", color: "var(--text-secondary)", marginBottom: "var(--sp-4)" }}>
+              {this.state.error?.message || "Error desconocido"}
+            </p>
+            <Button variant="primary" onClick={() => window.location.reload()}>
+              Reintentar análisis
+            </Button>
+          </Card>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
+function DirectorPageContent() {
   const [script, setScript] = useState("");
   const [decisions, setDecisions] = useState([]);
   const [loading, setLoading] = useState(false);
   const [toast, setToast] = useState(null);
   const [preset, setPreset] = useState("epic");
+  const [errorState, setErrorState] = useState(null);
 
   function showToast(msg) {
     setToast(msg);
@@ -34,9 +76,21 @@ export default function DirectorPage() {
       const saved = localStorage.getItem("director_last_analysis");
       if (saved) {
         const parsed = JSON.parse(saved);
-        setScript(parsed?.script || "");
-        setDecisions(Array.isArray(parsed?.decisions) ? parsed.decisions : []);
-        setPreset(parsed?.preset || "epic");
+        // Version check - solo cargar si es v1.0 o superior
+        if (parsed?.version === "1.0") {
+          const savedScript = parsed?.script || "";
+          const savedPreset = parsed?.preset || "epic";
+          const savedDecisionsRaw = Array.isArray(parsed?.decisionsRaw) ? parsed.decisionsRaw : [];
+
+          setScript(savedScript);
+          setPreset(savedPreset);
+
+          // Re-aplicar preset a las decisiones crudas
+          if (savedDecisionsRaw.length > 0) {
+            const processedDecisions = applyPreset(savedDecisionsRaw, savedPreset);
+            setDecisions(processedDecisions);
+          }
+        }
       }
     } catch {}
   }, []);
@@ -47,27 +101,65 @@ export default function DirectorPage() {
       return;
     }
 
+    // Validación de límite de caracteres
+    if (script.length > CHAR_LIMIT) {
+      setErrorState({
+        type: "char_limit",
+        message: "Acortá el guion o dividilo en partes",
+      });
+      showToast("Script muy largo");
+      return;
+    }
+
     const claudeKey = getAIValue("claude");
     if (!claudeKey) {
-      showToast("Conectá Claude en Settings → Conectar IAs");
+      setErrorState({
+        type: "no_key",
+        message: "Falta tu clave de Claude",
+      });
       return;
     }
 
     setLoading(true);
     setDecisions([]);
+    setErrorState(null);
 
     try {
-      const rawDecisions = await analyzeWithClaude(script, claudeKey);
+      const rawDecisions = await analyzeWithClaudeRetry(script, claudeKey);
       const processedDecisions = applyPreset(rawDecisions, preset);
       setDecisions(processedDecisions);
 
+      // Guardar con versión + timestamp + decisiones crudas
       localStorage.setItem(
         "director_last_analysis",
-        JSON.stringify({ script, decisions: processedDecisions, preset })
+        JSON.stringify({
+          version: "1.0",
+          script,
+          preset,
+          decisionsRaw: rawDecisions,
+          timestamp: new Date().toISOString(),
+        })
       );
 
       showToast("Análisis completado");
     } catch (err) {
+      const errorCode = err?.code;
+      if (errorCode === 401) {
+        setErrorState({
+          type: "auth",
+          message: "Falta tu clave de Claude",
+        });
+      } else if (errorCode === 429) {
+        setErrorState({
+          type: "rate_limit",
+          message: "Claude saturado, intentá de nuevo en unos segundos",
+        });
+      } else {
+        setErrorState({
+          type: "unknown",
+          message: err?.message || "Error al analizar el guion",
+        });
+      }
       showToast("Error: " + (err?.message || "Desconocido"));
     } finally {
       setLoading(false);
@@ -104,6 +196,10 @@ export default function DirectorPage() {
   }
 
   const hasDecisions = Array.isArray(decisions) && decisions.length > 0;
+  const charCount = script.length;
+  const isOverWarning = charCount > CHAR_WARNING;
+  const isOverLimit = charCount > CHAR_LIMIT;
+  const canAnalyze = script?.trim() && !isOverLimit && !loading;
 
   return (
     <div style={{ position: "relative" }}>
@@ -151,15 +247,68 @@ export default function DirectorPage() {
 
       <div className="dir-grid">
         <Card style={{ display: "flex", flexDirection: "column", gap: "var(--sp-3)" }}>
-          <Textarea
-            label="Guion completo"
-            value={script}
-            onChange={(e) => setScript(e.target.value)}
-            placeholder={
-              "Pegá tu guion acá...\n\nCada línea debería ser un beat/escena del video.\nClaude va a analizar el ritmo y decisiones visuales."
-            }
-            rows={14}
-          />
+          <div>
+            <Textarea
+              label="Guion completo"
+              value={script}
+              onChange={(e) => setScript(e.target.value)}
+              placeholder={
+                "Pegá tu guion acá...\n\nCada línea debería ser un beat/escena del video.\nClaude va a analizar el ritmo y decisiones visuales."
+              }
+              rows={14}
+            />
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                marginTop: "var(--sp-2)",
+                fontSize: "11px",
+              }}
+            >
+              <span
+                style={{
+                  color: isOverLimit ? "var(--danger)" : isOverWarning ? "var(--warning)" : "var(--dim)",
+                  fontWeight: isOverWarning ? 600 : 400,
+                }}
+              >
+                {charCount} / {CHAR_LIMIT} caracteres
+              </span>
+              {isOverLimit && (
+                <span style={{ color: "var(--danger)", fontWeight: 600 }}>
+                  Acortá el guion o dividilo en partes
+                </span>
+              )}
+            </div>
+          </div>
+
+          {errorState && (
+            <div
+              style={{
+                padding: "var(--sp-3)",
+                background: "color-mix(in srgb, var(--danger) 8%, var(--panel))",
+                border: "1px solid color-mix(in srgb, var(--danger) 20%, transparent)",
+                borderRadius: "var(--radius-md)",
+                fontSize: "12px",
+              }}
+            >
+              <div style={{ fontWeight: 600, color: "var(--danger)", marginBottom: "var(--sp-1)" }}>
+                {errorState.message}
+              </div>
+              {errorState.type === "no_key" || errorState.type === "auth" ? (
+                <Link
+                  href="/settings/ai"
+                  style={{
+                    color: "var(--accent)",
+                    textDecoration: "underline",
+                    fontSize: "11px",
+                  }}
+                >
+                  Ir a conectar Claude →
+                </Link>
+              ) : null}
+            </div>
+          )}
 
           <div>
             <div
@@ -189,7 +338,7 @@ export default function DirectorPage() {
           <Button
             variant="primary"
             size="lg"
-            disabled={!script?.trim() || loading}
+            disabled={!canAnalyze}
             onClick={handleAnalyze}
             style={{ width: "100%" }}
           >
@@ -430,7 +579,11 @@ Note: por qué funciona editorialmente`;
     }),
   });
 
-  if (!res.ok) throw new Error(`Claude error ${res.status}`);
+  if (!res.ok) {
+    const error = new Error(`Claude error ${res.status}`);
+    error.code = res.status;
+    throw error;
+  }
 
   const data = await res.json();
   const content = data.content?.[0]?.text;
@@ -443,6 +596,30 @@ Note: por qué funciona editorialmente`;
   if (!Array.isArray(decisions) || !decisions.length) throw new Error("JSON inválido");
 
   return decisions;
+}
+
+async function analyzeWithClaudeRetry(script, apiKey, maxRetries = 2) {
+  let lastError = null;
+
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      return await analyzeWithClaude(script, apiKey);
+    } catch (err) {
+      lastError = err;
+
+      // Solo reintentar en rate limit (429)
+      if (err?.code === 429 && attempt < maxRetries) {
+        const backoffMs = Math.pow(2, attempt) * 1000; // 1s, 2s
+        await new Promise((resolve) => setTimeout(resolve, backoffMs));
+        continue;
+      }
+
+      // Otros errores o max retries alcanzado
+      throw err;
+    }
+  }
+
+  throw lastError;
 }
 
 function applyPreset(decisions, preset) {
@@ -481,4 +658,12 @@ function downloadFile(content, filename, type) {
   a.click();
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
+}
+
+export default function DirectorPage() {
+  return (
+    <ErrorBoundary>
+      <DirectorPageContent />
+    </ErrorBoundary>
+  );
 }
