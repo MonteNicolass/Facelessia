@@ -2,87 +2,112 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import Card from "@/components/ui/Card";
-import Badge from "@/components/ui/Badge";
-import Button from "@/components/ui/Button";
 import { useStore } from "@/lib/store";
 
-export default function DashboardPage() {
+export default function HomePage() {
   const { state, dispatch } = useStore();
-  const [hoverStudio, setHoverStudio] = useState(false);
-  const [hoverDirector, setHoverDirector] = useState(false);
+  const [hoverGen, setHoverGen] = useState(false);
+  const [hoverDir, setHoverDir] = useState(false);
+  const [hoveredRun, setHoveredRun] = useState(null);
 
-  const studioScenes = state.studio.output?.script?.length || 0;
-  const editMapSegments = state.editMap.segments.length;
-  const hasQuickStatus = state.studio.output || editMapSegments > 0;
+  const runs = state.runs || [];
+
+  function handleDeleteRun(e, id) {
+    e.preventDefault();
+    e.stopPropagation();
+    dispatch({ type: "DELETE_RUN", payload: id });
+  }
 
   return (
     <div style={{ maxWidth: "720px" }}>
-      {/* Header */}
-      <div className="reveal" style={{ marginBottom: "var(--sp-8)" }}>
-        <div
-          style={{
-            fontSize: "10px",
-            fontFamily: "var(--font-body)",
-            fontWeight: 600,
-            textTransform: "uppercase",
-            letterSpacing: "1.5px",
-            color: "var(--dim)",
-            marginBottom: "var(--sp-3)",
-          }}
-        >
-          Pipeline de video faceless
-        </div>
+      {/* ── Header ── */}
+      <div style={{ marginBottom: "var(--sp-10)" }}>
         <h1
           style={{
             fontFamily: "var(--font-display)",
             fontWeight: 400,
-            fontSize: "30px",
-            lineHeight: 1.2,
+            fontSize: "36px",
+            lineHeight: 1.1,
             color: "var(--text)",
             margin: 0,
+            letterSpacing: "-0.02em",
           }}
         >
-          Celeste
+          CELESTE
         </h1>
+        <p
+          style={{
+            fontFamily: "var(--font-body)",
+            fontSize: "14px",
+            color: "var(--text-secondary)",
+            margin: "var(--sp-2) 0 0",
+            lineHeight: 1.6,
+          }}
+        >
+          Editor-first faceless video pipeline
+        </p>
       </div>
 
-      {/* Tool cards */}
+      {/* ── Mode Cards (2-col grid, 1-col mobile via min()) ── */}
       <div
         style={{
           display: "grid",
-          gridTemplateColumns: "1fr 1fr",
+          gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
           gap: "var(--sp-4)",
-          marginBottom: "var(--sp-6)",
+          marginBottom: "var(--sp-8)",
         }}
       >
-        {/* Studio card */}
-        <Link href="/studio" style={{ textDecoration: "none" }} className="reveal-d1">
-          <Card
+        {/* Generator Card */}
+        <Link
+          href="/generator/input"
+          style={{ textDecoration: "none", display: "block" }}
+          onMouseEnter={() => setHoverGen(true)}
+          onMouseLeave={() => setHoverGen(false)}
+        >
+          <div
             style={{
-              cursor: "pointer",
-              height: "100%",
-              transition: "border-color var(--transition-base), box-shadow var(--transition-base)",
-              borderTop: hoverStudio
+              background: "var(--panel)",
+              border: hoverGen
                 ? "1px solid var(--accent-border)"
                 : "1px solid var(--border)",
-              boxShadow: hoverStudio
-                ? "0 -1px 0 0 var(--accent-border)"
-                : "none",
+              borderRadius: "var(--radius-lg)",
+              padding: "var(--sp-6)",
+              cursor: "pointer",
+              transition:
+                "border-color var(--transition-base), box-shadow var(--transition-base)",
+              boxShadow: hoverGen ? "var(--shadow-md)" : "var(--shadow-sm)",
+              height: "100%",
+              display: "flex",
+              flexDirection: "column",
             }}
-            onMouseEnter={() => setHoverStudio(true)}
-            onMouseLeave={() => setHoverStudio(false)}
           >
+            {/* Lightning bolt icon */}
             <div
               style={{
+                width: "40px",
+                height: "40px",
+                borderRadius: "var(--radius-md)",
+                background: "var(--accent-muted)",
                 display: "flex",
                 alignItems: "center",
-                gap: "var(--sp-2)",
-                marginBottom: "var(--sp-2)",
+                justifyContent: "center",
+                marginBottom: "var(--sp-4)",
               }}
             >
-              <Badge color="var(--accent)">AI VIDEO</Badge>
+              <svg
+                width="20"
+                height="20"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="var(--accent)"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z" />
+              </svg>
             </div>
+
             <div
               style={{
                 fontSize: "16px",
@@ -92,62 +117,92 @@ export default function DashboardPage() {
                 marginBottom: "var(--sp-2)",
               }}
             >
-              Studio
+              Generador Faceless
             </div>
+
             <p
               style={{
                 fontSize: "13px",
-                lineHeight: 1.5,
+                lineHeight: 1.6,
                 color: "var(--text-secondary)",
-                margin: "0 0 var(--sp-4)",
+                margin: "0 0 var(--sp-5)",
                 fontFamily: "var(--font-body)",
+                flex: 1,
               }}
             >
-              Genera guiones, prompts y assets desde un tema. Flujo completo automatizado.
+              Pipeline mock de 5 pasos: Input &rarr; Script &rarr; Assets
+              &rarr; Assemble &rarr; Output
             </p>
+
             <span
               style={{
-                fontSize: "12px",
-                color: "var(--accent)",
-                fontWeight: 500,
+                fontSize: "13px",
+                fontWeight: 600,
                 fontFamily: "var(--font-body)",
+                color: "var(--accent)",
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "var(--sp-1)",
                 transition: "color var(--transition-fast)",
               }}
             >
-              Abrir studio &rarr;
+              Comenzar &rarr;
             </span>
-          </Card>
+          </div>
         </Link>
 
-        {/* Director card */}
-        <Link href="/director" style={{ textDecoration: "none" }} className="reveal-d2">
-          <Card
-            highlight
-            color="var(--pink)"
+        {/* Director Card */}
+        <Link
+          href="/director"
+          style={{ textDecoration: "none", display: "block" }}
+          onMouseEnter={() => setHoverDir(true)}
+          onMouseLeave={() => setHoverDir(false)}
+        >
+          <div
             style={{
+              background: "var(--panel)",
+              border: hoverDir
+                ? "1px solid var(--accent-border)"
+                : "1px solid var(--border)",
+              borderRadius: "var(--radius-lg)",
+              padding: "var(--sp-6)",
               cursor: "pointer",
+              transition:
+                "border-color var(--transition-base), box-shadow var(--transition-base)",
+              boxShadow: hoverDir ? "var(--shadow-md)" : "var(--shadow-sm)",
               height: "100%",
-              transition: "border-color var(--transition-base), box-shadow var(--transition-base)",
-              borderTop: hoverDirector
-                ? "1px solid color-mix(in srgb, var(--pink) 40%, transparent)"
-                : undefined,
-              boxShadow: hoverDirector
-                ? "0 -1px 0 0 color-mix(in srgb, var(--pink) 30%, transparent)"
-                : "none",
+              display: "flex",
+              flexDirection: "column",
             }}
-            onMouseEnter={() => setHoverDirector(true)}
-            onMouseLeave={() => setHoverDirector(false)}
           >
+            {/* Columns icon */}
             <div
               style={{
+                width: "40px",
+                height: "40px",
+                borderRadius: "var(--radius-md)",
+                background: "var(--accent-muted)",
                 display: "flex",
                 alignItems: "center",
-                gap: "var(--sp-2)",
-                marginBottom: "var(--sp-2)",
+                justifyContent: "center",
+                marginBottom: "var(--sp-4)",
               }}
             >
-              <Badge color="var(--pink)">EDIT MAP</Badge>
+              <svg
+                width="20"
+                height="20"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="var(--accent)"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <rect x="3" y="3" width="7" height="18" rx="1" />
+                <rect x="14" y="3" width="7" height="18" rx="1" />
+              </svg>
             </div>
+
             <div
               style={{
                 fontSize: "16px",
@@ -157,208 +212,196 @@ export default function DashboardPage() {
                 marginBottom: "var(--sp-2)",
               }}
             >
-              Director
+              Editing Director
             </div>
+
             <p
               style={{
                 fontSize: "13px",
-                lineHeight: 1.5,
+                lineHeight: 1.6,
                 color: "var(--text-secondary)",
-                margin: "0 0 var(--sp-4)",
+                margin: "0 0 var(--sp-5)",
                 fontFamily: "var(--font-body)",
+                flex: 1,
               }}
             >
-              Importa guion, segmenta escenas, asigna motions, b-roll y SFX. Exporta el edit map.
+              Analiza tu guion y genera EDL con motions, b-roll, SFX y
+              transiciones
             </p>
+
             <span
               style={{
-                fontSize: "12px",
-                color: "var(--pink)",
-                fontWeight: 500,
+                fontSize: "13px",
+                fontWeight: 600,
                 fontFamily: "var(--font-body)",
+                color: "var(--accent)",
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "var(--sp-1)",
                 transition: "color var(--transition-fast)",
               }}
             >
-              Abrir director &rarr;
+              Abrir Director &rarr;
             </span>
-          </Card>
+          </div>
         </Link>
       </div>
 
-      {/* Quick status */}
-      {hasQuickStatus && (
-        <Card className="reveal-d2" style={{ marginBottom: "var(--sp-6)" }}>
-          <div
+      {/* ── Recent Runs ── */}
+      <div>
+        <h3
+          style={{
+            fontFamily: "var(--font-body)",
+            fontSize: "11px",
+            fontWeight: 700,
+            color: "var(--dim)",
+            textTransform: "uppercase",
+            letterSpacing: "0.08em",
+            margin: "0 0 var(--sp-4)",
+          }}
+        >
+          Recent Runs
+        </h3>
+
+        {runs.length === 0 ? (
+          <p
             style={{
-              fontSize: "10px",
-              fontWeight: 600,
               fontFamily: "var(--font-body)",
+              fontSize: "13px",
               color: "var(--dim)",
-              textTransform: "uppercase",
-              letterSpacing: "0.8px",
-              marginBottom: "var(--sp-3)",
+              margin: 0,
+              lineHeight: 1.6,
             }}
           >
-            Estado actual
-          </div>
+            No hay runs guardados aun
+          </p>
+        ) : (
           <div
             style={{
               display: "flex",
-              gap: "var(--sp-6)",
-              flexWrap: "wrap",
+              flexDirection: "column",
+              gap: "var(--sp-2)",
             }}
           >
-            {state.studio.output && (
-              <Stat label="Studio scenes" value={studioScenes} />
-            )}
-            {editMapSegments > 0 && (
-              <Stat label="Edit Map segments" value={editMapSegments} />
-            )}
-          </div>
-        </Card>
-      )}
-
-      {/* Recent Projects */}
-      <div className="reveal-d3">
-        {state.projects.length > 0 ? (
-          <>
-            <SectionLabel>Proyectos recientes</SectionLabel>
-            <div style={{ display: "flex", flexDirection: "column", gap: "var(--sp-2)" }}>
-              {state.projects.map((project) => (
-                <Card key={project.id} style={{ padding: "var(--sp-3) var(--sp-4)" }}>
+            {runs.map((run) => {
+              const isHovered = hoveredRun === run.id;
+              return (
+                <Link
+                  key={run.id}
+                  href={`/runs/${run.id}`}
+                  style={{ textDecoration: "none", display: "block" }}
+                  onMouseEnter={() => setHoveredRun(run.id)}
+                  onMouseLeave={() => setHoveredRun(null)}
+                >
                   <div
                     style={{
                       display: "flex",
                       alignItems: "center",
-                      justifyContent: "space-between",
                       gap: "var(--sp-3)",
+                      padding: "var(--sp-3) var(--sp-4)",
+                      background: isHovered
+                        ? "var(--panel-hover)"
+                        : "var(--panel)",
+                      border: "1px solid",
+                      borderColor: isHovered
+                        ? "var(--border)"
+                        : "var(--border-subtle)",
+                      borderRadius: "var(--radius-md)",
+                      cursor: "pointer",
+                      transition: "all var(--transition-fast)",
                     }}
                   >
-                    <div
+                    {/* Type badge */}
+                    <span
                       style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: "var(--sp-3)",
-                        minWidth: 0,
-                        flex: 1,
+                        fontSize: "10px",
+                        fontWeight: 700,
+                        fontFamily: "var(--font-mono)",
+                        letterSpacing: "0.04em",
+                        textTransform: "uppercase",
+                        padding: "2px 8px",
+                        borderRadius: "var(--radius-sm)",
+                        background:
+                          run.type === "generator"
+                            ? "var(--accent-muted)"
+                            : "var(--warning-muted)",
+                        color:
+                          run.type === "generator"
+                            ? "var(--accent)"
+                            : "var(--warning)",
+                        flexShrink: 0,
                       }}
                     >
-                      <div style={{ minWidth: 0, flex: 1 }}>
-                        <Link
-                          href={`/${project.type === "studio" ? "studio" : "director"}?id=${project.id}`}
-                          style={{
-                            fontSize: "13px",
-                            fontFamily: "var(--font-body)",
-                            fontWeight: 500,
-                            color: "var(--text)",
-                            overflow: "hidden",
-                            textOverflow: "ellipsis",
-                            whiteSpace: "nowrap",
-                            textDecoration: "none",
-                            display: "block",
-                          }}
-                        >
-                          {project.name}
-                        </Link>
-                        <div
-                          style={{
-                            fontSize: "11px",
-                            fontFamily: "var(--font-body)",
-                            color: "var(--dim)",
-                            marginTop: "2px",
-                          }}
-                        >
-                          {new Date(project.createdAt).toLocaleDateString("es-ES", {
-                            day: "numeric",
-                            month: "short",
-                            year: "numeric",
-                          })}
-                        </div>
-                      </div>
-                      <Badge
-                        color={project.type === "studio" ? "var(--accent)" : "var(--pink)"}
-                      >
-                        {project.type === "studio" ? "Studio" : "Director"}
-                      </Badge>
-                    </div>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() =>
-                        dispatch({ type: "DELETE_PROJECT", payload: project.id })
-                      }
-                      style={{ color: "var(--muted)", flexShrink: 0 }}
+                      {run.type === "generator" ? "Generator" : "Director"}
+                    </span>
+
+                    {/* Run name */}
+                    <span
+                      style={{
+                        flex: 1,
+                        fontSize: "13px",
+                        fontFamily: "var(--font-body)",
+                        fontWeight: 500,
+                        color: "var(--text)",
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        whiteSpace: "nowrap",
+                        minWidth: 0,
+                      }}
+                    >
+                      {run.name}
+                    </span>
+
+                    {/* Date */}
+                    <span
+                      style={{
+                        fontSize: "11px",
+                        fontFamily: "var(--font-body)",
+                        color: "var(--dim)",
+                        flexShrink: 0,
+                      }}
+                    >
+                      {new Date(run.createdAt).toLocaleDateString("es-AR", {
+                        day: "numeric",
+                        month: "short",
+                        year: "numeric",
+                      })}
+                    </span>
+
+                    {/* Delete button */}
+                    <button
+                      onClick={(e) => handleDeleteRun(e, run.id)}
+                      style={{
+                        background: "none",
+                        border: "none",
+                        cursor: "pointer",
+                        padding: "var(--sp-1) var(--sp-2)",
+                        borderRadius: "var(--radius-sm)",
+                        color: "var(--muted)",
+                        fontSize: "12px",
+                        fontFamily: "var(--font-body)",
+                        fontWeight: 500,
+                        transition: "color var(--transition-fast), background var(--transition-fast)",
+                        flexShrink: 0,
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.color = "var(--danger)";
+                        e.currentTarget.style.background = "var(--danger-muted)";
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.color = "var(--muted)";
+                        e.currentTarget.style.background = "none";
+                      }}
                     >
                       Eliminar
-                    </Button>
+                    </button>
                   </div>
-                </Card>
-              ))}
-            </div>
-          </>
-        ) : (
-          <p
-            style={{
-              fontSize: "13px",
-              fontFamily: "var(--font-body)",
-              color: "var(--dim)",
-              margin: 0,
-            }}
-          >
-            Sin proyectos guardados todavia.
-          </p>
+                </Link>
+              );
+            })}
+          </div>
         )}
       </div>
-    </div>
-  );
-}
-
-/* -- Local helper components -- */
-
-function Stat({ label, value }) {
-  return (
-    <div style={{ minWidth: 0 }}>
-      <div
-        style={{
-          fontSize: "10px",
-          fontFamily: "var(--font-body)",
-          color: "var(--dim)",
-          textTransform: "uppercase",
-          marginBottom: "3px",
-          fontWeight: 600,
-          letterSpacing: "0.4px",
-        }}
-      >
-        {label}
-      </div>
-      <div
-        style={{
-          fontSize: "15px",
-          fontFamily: "var(--font-body)",
-          color: "var(--text-secondary)",
-          fontWeight: 500,
-        }}
-      >
-        {value}
-      </div>
-    </div>
-  );
-}
-
-function SectionLabel({ children }) {
-  return (
-    <div
-      style={{
-        fontSize: "10px",
-        fontWeight: 600,
-        fontFamily: "var(--font-body)",
-        color: "var(--dim)",
-        textTransform: "uppercase",
-        letterSpacing: "1px",
-        marginBottom: "var(--sp-3)",
-      }}
-    >
-      {children}
     </div>
   );
 }

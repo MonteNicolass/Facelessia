@@ -1,890 +1,936 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
-import Button from "@/components/ui/Button";
-import Card from "@/components/ui/Card";
-import Badge from "@/components/ui/Badge";
-import Textarea from "@/components/ui/Textarea";
-import Input from "@/components/ui/Input";
-import InlineNotice from "@/components/ui/InlineNotice";
-import EmptyState from "@/components/ui/EmptyState";
+import { useState, useCallback } from "react";
 import { useStore } from "@/lib/store";
-import { parseToSegments, generateEditMap, exportEditMapJSON, fmtTime } from "@/lib/edit-map";
+import {
+  parseToSegments,
+  generateEditMap,
+  exportDirectorJSON,
+  exportDirectorTXT,
+  copyDirectorToClipboard,
+} from "@/lib/director";
 
-// ── Motion presets for cycling ──
-const MOTION_PRESETS = [
+// ── Motion presets for the editable dropdown ──
+const MOTION_TYPES = [
   { type: "slow_zoom_in", label: "Slow Zoom In" },
   { type: "slow_zoom_out", label: "Slow Zoom Out" },
-  { type: "push_in_fast", label: "Push In Fast" },
   { type: "pan_left_soft", label: "Pan Left Soft" },
+  { type: "pan_right_soft", label: "Pan Right Soft" },
+  { type: "push_in_fast", label: "Push In Fast" },
+  { type: "hold_static", label: "Hold Static" },
   { type: "micro_shake", label: "Micro Shake" },
   { type: "whip_pan_soft", label: "Whip Pan Soft" },
+  { type: "parallax_soft", label: "Parallax Soft" },
 ];
+
+// ── Emotion → CSS color mapping ──
+const EMOTION_COLORS = {
+  impacto: "var(--danger)",
+  tension: "var(--warning)",
+  revelacion: "var(--accent)",
+  calma: "var(--success)",
+  energia: "var(--pink)",
+  cierre: "var(--muted)",
+  default: "var(--dim)",
+};
+
+// ── Time formatting helper ──
+function fmtTime(sec) {
+  const m = Math.floor(sec / 60);
+  const s = Math.floor(sec % 60);
+  return `${m}:${s.toString().padStart(2, "0")}`;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// DIRECTOR PAGE
+// ═══════════════════════════════════════════════════════════════
 
 export default function DirectorPage() {
   const { state, dispatch } = useStore();
-  const [analyzeNotice, setAnalyzeNotice] = useState(null);
+  const [toast, setToast] = useState(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [source, setSource] = useState(null);
-  const importRef = useRef(null);
-  const loadedRef = useRef(false);
 
-  const segments = state.editMap.segments || [];
-  const selectedSeg = segments.find((s) => s.id === state.editMap.selectedId) || null;
+  const { raw, format, duration, segments, selectedId } = state.director;
   const hasSegments = segments.length > 0;
+  const totalDuration = hasSegments ? segments[segments.length - 1].end : 0;
 
-  // Load project from URL param
-  useEffect(() => {
-    if (loadedRef.current) return;
-    const params = new URLSearchParams(window.location.search);
-    const id = params.get("id");
-    if (!id) return;
-    const project = state.projects.find((p) => p.id === Number(id));
-    if (project && project.type === "director" && project.data?.editMap) {
-      dispatch({ type: "SET_EDITMAP_RAW", payload: project.data.editMap.raw || "" });
-      dispatch({ type: "SET_EDITMAP_FORMAT", payload: project.data.editMap.format || "short" });
-      dispatch({ type: "SET_EDITMAP_SEGMENTS", payload: project.data.editMap.segments || [] });
-      if (project.data.editMap.segments?.length > 0) {
-        dispatch({ type: "SET_EDITMAP_SELECTED", payload: project.data.editMap.segments[0].id });
-      }
-      loadedRef.current = true;
-    }
-  }, [state.projects]);
+  // ── Actions ─────────────────────────────────────────────────
 
-  // ── Actions ──
-
-  async function handleAnalyze() {
-    const raw = (state.editMap.raw || "").trim();
-    if (!raw) return;
+  const handleAnalyze = useCallback(() => {
+    if (!raw.trim()) return;
     setIsAnalyzing(true);
-    setSource(null);
     try {
-      const fmt = state.editMap.format || "short";
-      const dur = fmt === "long" ? 180 : fmt === "reels" ? 30 : 60;
-      const res = await fetch("/api/director/analyze", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ scriptText: raw, format: fmt, targetDurationSec: dur }),
-      });
-      const data = await res.json();
-      if (data.error) throw new Error(data.error);
-      const enriched = data.segments || [];
-      dispatch({ type: "SET_EDITMAP_SEGMENTS", payload: enriched });
-      setSource(data.source);
+      const parsed = parseToSegments(raw, format, duration);
+      const enriched = generateEditMap(parsed);
+      dispatch({ type: "SET_DIR_SEGMENTS", payload: enriched });
       if (enriched.length > 0) {
-        dispatch({ type: "SET_EDITMAP_SELECTED", payload: enriched[0].id });
-        setAnalyzeNotice({ ok: true, text: `${enriched.length} segmentos analizados (${data.source})` });
-      } else {
-        setAnalyzeNotice({ ok: false, text: "No se detectaron segmentos. Verifica el texto." });
-      }
-    } catch {
-      try {
-        const fmt = state.editMap.format || "short";
-        const dur = fmt === "long" ? 180 : fmt === "reels" ? 30 : 60;
-        const segs = parseToSegments(raw, fmt, dur);
-        const enriched = generateEditMap(segs);
-        dispatch({ type: "SET_EDITMAP_SEGMENTS", payload: enriched });
-        setSource("mock");
-        if (enriched.length > 0) {
-          dispatch({ type: "SET_EDITMAP_SELECTED", payload: enriched[0].id });
-          setAnalyzeNotice({ ok: true, text: `${enriched.length} segmentos analizados (mock)` });
-        } else {
-          setAnalyzeNotice({ ok: false, text: "No se detectaron segmentos." });
-        }
-      } catch {
-        setAnalyzeNotice({ ok: false, text: "Error al analizar el texto." });
+        dispatch({ type: "SET_DIR_SELECTED", payload: enriched[0].id });
       }
     } finally {
       setIsAnalyzing(false);
     }
+  }, [raw, format, duration, dispatch]);
+
+  function showToast(text) {
+    setToast(text);
+    setTimeout(() => setToast(null), 1800);
   }
 
-  function handleExport() {
-    if (!hasSegments) return;
-    exportEditMapJSON(segments, state.editMap.format);
+  function handleCopy() {
+    copyDirectorToClipboard(segments).then(() => showToast("Copiado"));
   }
 
-  function handleSave() {
-    const name = hasSegments
-      ? segments[0].text.slice(0, 40).trim() || "Edit Map"
-      : "Edit Map";
+  function handleSaveRun() {
     dispatch({
-      type: "SAVE_PROJECT",
+      type: "SAVE_RUN",
       payload: {
         type: "director",
-        name,
-        data: { editMap: state.editMap },
+        name: `Director ${new Date().toLocaleDateString("es-AR")}`,
+        input: { raw, format, duration },
+        output: { segments },
       },
     });
+    showToast("Run guardado");
   }
 
-  function handleReset() {
-    dispatch({ type: "EDITMAP_RESET" });
-    setAnalyzeNotice(null);
-    setSource(null);
+  function updateSegment(id, changes) {
+    dispatch({ type: "UPDATE_DIR_SEGMENT", payload: { id, ...changes } });
   }
 
-  function handleImportFile(e) {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (ev) => {
-      try {
-        const data = JSON.parse(ev.target.result);
-        if (data.segments && Array.isArray(data.segments)) {
-          dispatch({ type: "SET_EDITMAP_SEGMENTS", payload: data.segments });
-          if (data.segments.length > 0) {
-            dispatch({ type: "SET_EDITMAP_SELECTED", payload: data.segments[0].id });
-          }
-          setSource("import");
-          setAnalyzeNotice({ ok: true, text: `${data.segments.length} segmentos importados` });
-        } else if (data.script?.scenes || data.output?.script?.scenes) {
-          const scenes = data.script?.scenes || data.output?.script?.scenes || [];
-          const raw = scenes.map((s) => s.narration).join("\n\n");
-          dispatch({ type: "SET_EDITMAP_RAW", payload: raw });
-          setAnalyzeNotice({ ok: true, text: `Script importado (${scenes.length} escenas). Presiona Analizar.` });
-        }
-      } catch {
-        setAnalyzeNotice({ ok: false, text: "Archivo JSON invalido." });
-      }
-    };
-    reader.readAsText(file);
-    e.target.value = "";
-  }
-
-  function updateSeg(id, changes) {
-    dispatch({ type: "UPDATE_SEGMENT", payload: { id, ...changes } });
-  }
-
-  function cycleMotion(seg) {
-    const currentIdx = MOTION_PRESETS.findIndex((p) => p.type === seg.motion.type);
-    const nextIdx = (currentIdx + 1) % MOTION_PRESETS.length;
-    const next = MOTION_PRESETS[nextIdx];
-    updateSeg(seg.id, {
-      motion: { ...seg.motion, type: next.type, label: next.label },
-    });
-  }
-
-  // ── Helpers ──
-
-  function truncate(text, max = 60) {
-    if (!text) return "";
-    return text.length > max ? text.slice(0, max) + "..." : text;
-  }
-
-  function totalDuration() {
-    if (!hasSegments) return 0;
-    return segments[segments.length - 1].end;
-  }
-
-  // ── Render ──
+  // ── Render ──────────────────────────────────────────────────
 
   return (
-    <div>
-      {/* ════════════ HEADER ════════════ */}
-      <div className="reveal" style={{ marginBottom: "var(--sp-8)" }}>
+    <div style={{ position: "relative" }}>
+      {/* ════ Toast ════ */}
+      {toast && (
         <div
           style={{
-            display: "flex",
-            alignItems: "center",
-            gap: "var(--sp-3)",
-            marginBottom: "var(--sp-2)",
+            position: "fixed",
+            bottom: "var(--sp-6)",
+            right: "var(--sp-6)",
+            background: "var(--success)",
+            color: "#fff",
+            fontFamily: "var(--font-body)",
+            fontSize: "13px",
+            fontWeight: 600,
+            padding: "var(--sp-2) var(--sp-5)",
+            borderRadius: "var(--radius-md)",
+            boxShadow: "var(--shadow-lg)",
+            zIndex: 9999,
+            animation: "fadeIn 0.15s ease",
           }}
         >
-          <h1
-            style={{
-              fontFamily: "var(--font-display)",
-              fontWeight: 400,
-              fontSize: "28px",
-              color: "var(--text)",
-              lineHeight: 1.15,
-              margin: 0,
-            }}
-          >
-            Director
-          </h1>
-          <Badge
-            color="var(--pink)"
-            style={{
-              fontSize: "10px",
-              padding: "2px 10px",
-              fontWeight: 700,
-              letterSpacing: "0.08em",
-            }}
-          >
-            EDIT MAP
-          </Badge>
-          <Badge
-            color="var(--accent)"
-            style={{
-              fontSize: "9px",
-              padding: "1px 7px",
-              fontWeight: 700,
-              letterSpacing: "0.06em",
-            }}
-          >
-            PRO
-          </Badge>
+          {toast}
         </div>
+      )}
+
+      {/* ════ Header ════ */}
+      <div style={{ marginBottom: "var(--sp-6)" }}>
+        <h1
+          style={{
+            fontFamily: "var(--font-display)",
+            fontWeight: 400,
+            fontSize: "28px",
+            color: "var(--text)",
+            lineHeight: 1.15,
+            margin: "0 0 var(--sp-2) 0",
+          }}
+        >
+          Editing Director
+        </h1>
         <p
           style={{
             fontFamily: "var(--font-body)",
             fontSize: "13px",
             color: "var(--muted)",
             lineHeight: 1.6,
-            maxWidth: "580px",
             margin: 0,
+            maxWidth: "560px",
           }}
         >
-          Pega un guion, elige el formato y analiza. El Edit Map genera decisiones de
-          edicion automaticas: movimiento de camara, b-roll, SFX, texto en pantalla y
-          notas para el editor.
+          Pega un guion, configura el formato y analiza. El Director genera
+          decisiones de edicion automaticas por segmento: motion, b-roll, SFX,
+          texto en pantalla y notas.
         </p>
       </div>
 
-      {/* ════════════ TWO-COLUMN LAYOUT ════════════ */}
+      {/* ════ Two-Panel Grid ════ */}
       <div
         style={{
           display: "grid",
-          gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1.5fr)",
+          gridTemplateColumns: "1fr 1fr",
           gap: "var(--sp-8)",
           alignItems: "start",
         }}
       >
-        {/* ──────── LEFT: INPUT PANEL ──────── */}
+        {/* ──────── LEFT PANEL: Input + Controls ──────── */}
         <div
-          className="reveal-d1"
-          style={{ display: "flex", flexDirection: "column", gap: "var(--sp-4)" }}
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            gap: "var(--sp-4)",
+          }}
         >
-          <SectionLabel>Script</SectionLabel>
-
-          {/* Script textarea */}
-          <Textarea
-            value={state.editMap.raw || ""}
-            onChange={(e) => {
-              dispatch({ type: "SET_EDITMAP_RAW", payload: e.target.value });
-              setAnalyzeNotice(null);
-            }}
-            placeholder={
-              "Pega tu guion aqui.\n\nCon timestamps:\n[0:00-0:08] Intro hook...\n[0:08-0:20] Desarrollo...\n\nO simplemente parrafos separados por linea en blanco."
+          {/* Textarea */}
+          <textarea
+            value={raw}
+            onChange={(e) =>
+              dispatch({ type: "SET_DIR_RAW", payload: e.target.value })
             }
-            rows={16}
+            placeholder={
+              "Peg\u00e1 tu gui\u00f3n ac\u00e1...\n\n[0:00] Primera escena...\n[0:08] Segunda escena..."
+            }
             style={{
-              minHeight: "340px",
-              fontFamily: "var(--font-body)",
+              width: "100%",
+              minHeight: "200px",
+              resize: "vertical",
+              fontFamily: "var(--font-mono)",
               fontSize: "13px",
               lineHeight: 1.7,
+              color: "var(--text)",
+              background: "var(--panel-2)",
+              border: "1px solid var(--border)",
+              borderRadius: "var(--radius-md)",
+              padding: "var(--sp-4)",
+              outline: "none",
+              transition: "border-color var(--transition-fast)",
+              boxSizing: "border-box",
             }}
+            onFocus={(e) =>
+              (e.target.style.borderColor = "var(--accent-border)")
+            }
+            onBlur={(e) =>
+              (e.target.style.borderColor = "var(--border)")
+            }
           />
 
-          {/* Format selector */}
-          <div>
-            <SectionLabel style={{ marginBottom: "var(--sp-2)" }}>Formato</SectionLabel>
-            <div style={{ display: "flex", gap: "var(--sp-2)" }}>
-              {[
-                { id: "short", label: "Short", dur: "~60s" },
-                { id: "long", label: "Long", dur: "~3min" },
-                { id: "reels", label: "Reels", dur: "~30s" },
-              ].map((fmt) => {
-                const isActive = state.editMap.format === fmt.id;
-                return (
-                  <button
-                    key={fmt.id}
-                    onClick={() =>
-                      dispatch({ type: "SET_EDITMAP_FORMAT", payload: fmt.id })
-                    }
-                    style={{
-                      flex: 1,
-                      padding: "var(--sp-2) var(--sp-3)",
-                      background: isActive
-                        ? "color-mix(in srgb, var(--accent) 12%, var(--panel))"
-                        : "var(--panel-2)",
-                      border: isActive
-                        ? "1px solid var(--accent-border)"
-                        : "1px solid var(--border)",
-                      borderRadius: "var(--radius-md)",
-                      cursor: "pointer",
-                      transition: "all var(--transition-fast)",
-                      display: "flex",
-                      flexDirection: "column",
-                      alignItems: "center",
-                      gap: "2px",
-                    }}
-                  >
-                    <span
-                      style={{
-                        fontSize: "12px",
-                        fontWeight: 600,
-                        fontFamily: "var(--font-body)",
-                        color: isActive ? "var(--accent)" : "var(--text-secondary)",
-                      }}
-                    >
-                      {fmt.label}
-                    </span>
-                    <span
-                      style={{
-                        fontSize: "10px",
-                        fontFamily: "var(--font-mono)",
-                        color: isActive ? "var(--accent)" : "var(--dim)",
-                      }}
-                    >
-                      {fmt.dur}
-                    </span>
-                  </button>
-                );
-              })}
+          {/* Controls row */}
+          <div
+            style={{
+              display: "flex",
+              gap: "var(--sp-3)",
+              alignItems: "flex-end",
+            }}
+          >
+            {/* Format select */}
+            <div style={{ flex: 1 }}>
+              <label
+                style={{
+                  display: "block",
+                  fontSize: "10px",
+                  fontWeight: 600,
+                  fontFamily: "var(--font-body)",
+                  color: "var(--dim)",
+                  textTransform: "uppercase",
+                  letterSpacing: "0.08em",
+                  marginBottom: "var(--sp-1)",
+                }}
+              >
+                Formato
+              </label>
+              <select
+                value={format}
+                onChange={(e) =>
+                  dispatch({ type: "SET_DIR_FORMAT", payload: e.target.value })
+                }
+                style={{
+                  width: "100%",
+                  fontFamily: "var(--font-body)",
+                  fontSize: "13px",
+                  color: "var(--text)",
+                  background: "var(--panel-2)",
+                  border: "1px solid var(--border)",
+                  borderRadius: "var(--radius-md)",
+                  padding: "var(--sp-2) var(--sp-3)",
+                  outline: "none",
+                  cursor: "pointer",
+                  appearance: "auto",
+                }}
+              >
+                <option value="short">Short ~60s</option>
+                <option value="long">Long ~180s</option>
+                <option value="reels">Reels ~30s</option>
+              </select>
+            </div>
+
+            {/* Duration input */}
+            <div style={{ width: "110px" }}>
+              <label
+                style={{
+                  display: "block",
+                  fontSize: "10px",
+                  fontWeight: 600,
+                  fontFamily: "var(--font-body)",
+                  color: "var(--dim)",
+                  textTransform: "uppercase",
+                  letterSpacing: "0.08em",
+                  marginBottom: "var(--sp-1)",
+                }}
+              >
+                Duracion
+              </label>
+              <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+                <input
+                  type="number"
+                  min={15}
+                  max={300}
+                  value={duration}
+                  onChange={(e) =>
+                    dispatch({
+                      type: "SET_DIR_DURATION",
+                      payload: Math.max(15, Math.min(300, Number(e.target.value) || 15)),
+                    })
+                  }
+                  style={{
+                    width: "70px",
+                    fontFamily: "var(--font-mono)",
+                    fontSize: "13px",
+                    color: "var(--text)",
+                    background: "var(--panel-2)",
+                    border: "1px solid var(--border)",
+                    borderRadius: "var(--radius-md)",
+                    padding: "var(--sp-2) var(--sp-2)",
+                    outline: "none",
+                    textAlign: "center",
+                  }}
+                />
+                <span
+                  style={{
+                    fontSize: "12px",
+                    fontFamily: "var(--font-mono)",
+                    color: "var(--muted)",
+                  }}
+                >
+                  s
+                </span>
+              </div>
             </div>
           </div>
 
           {/* Analyze button */}
-          <Button
-            variant="primary"
+          <button
             onClick={handleAnalyze}
-            disabled={!(state.editMap.raw || "").trim() || isAnalyzing}
-            style={{ width: "100%" }}
+            disabled={!raw.trim() || isAnalyzing}
+            style={{
+              width: "100%",
+              padding: "var(--sp-3) var(--sp-5)",
+              fontFamily: "var(--font-body)",
+              fontSize: "14px",
+              fontWeight: 600,
+              color: "#fff",
+              background: !raw.trim() || isAnalyzing
+                ? "var(--accent-muted)"
+                : "var(--accent)",
+              border: "none",
+              borderRadius: "var(--radius-md)",
+              cursor: !raw.trim() || isAnalyzing ? "not-allowed" : "pointer",
+              transition: "background var(--transition-fast)",
+              opacity: !raw.trim() || isAnalyzing ? 0.5 : 1,
+            }}
+            onMouseEnter={(e) => {
+              if (raw.trim() && !isAnalyzing)
+                e.target.style.background = "var(--accent-hover)";
+            }}
+            onMouseLeave={(e) => {
+              if (raw.trim() && !isAnalyzing)
+                e.target.style.background = "var(--accent)";
+            }}
           >
-            {isAnalyzing ? "Analizando..." : "Analizar y generar Edit Map"}
-          </Button>
+            {isAnalyzing ? "Analizando..." : "Analizar Script"}
+          </button>
 
-          {/* Feedback */}
-          {analyzeNotice && (
-            <InlineNotice variant={analyzeNotice.ok ? "success" : "error"}>
-              {analyzeNotice.text}
-            </InlineNotice>
-          )}
-
-          {/* Stats card */}
+          {/* Export bar */}
           {hasSegments && (
-            <Card
-              highlight
-              color="var(--accent)"
-              style={{ padding: "var(--sp-4) var(--sp-5)" }}
+            <div
+              style={{
+                display: "flex",
+                gap: "var(--sp-2)",
+                flexWrap: "wrap",
+                padding: "var(--sp-3) var(--sp-4)",
+                background: "var(--surface)",
+                borderRadius: "var(--radius-md)",
+                border: "1px solid var(--border-subtle)",
+              }}
             >
-              {source && (
-                <div style={{ display: "flex", alignItems: "center", gap: "var(--sp-2)", marginBottom: "var(--sp-3)" }}>
-                  <span style={{ fontSize: "10px", fontFamily: "var(--font-body)", color: "var(--dim)" }}>Fuente:</span>
-                  <Badge
-                    color={source === "mock" || source === "import" ? "var(--dim)" : "var(--success)"}
-                    style={{ fontSize: "9px", padding: "1px 7px" }}
-                  >
-                    {source.toUpperCase()}
-                  </Badge>
-                </div>
-              )}
-              <div
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "1fr 1fr 1fr",
-                  gap: "var(--sp-4)",
-                }}
-              >
-                <StatBlock
-                  label="Segmentos"
-                  value={segments.length}
-                  color="var(--accent)"
-                />
-                <StatBlock
-                  label="Duracion total"
-                  value={fmtTime(totalDuration())}
-                  color="var(--pink)"
-                />
-                <StatBlock
-                  label="Formato"
-                  value={
-                    state.editMap.format === "short"
-                      ? "Short"
-                      : state.editMap.format === "long"
-                        ? "Long"
-                        : "Reels"
-                  }
-                  color="var(--warning)"
-                />
-              </div>
-            </Card>
+              <ExportBtn onClick={() => exportDirectorJSON(segments, format, duration)}>
+                JSON
+              </ExportBtn>
+              <ExportBtn onClick={() => exportDirectorTXT(segments, format)}>
+                TXT
+              </ExportBtn>
+              <ExportBtn onClick={handleCopy}>Copiar</ExportBtn>
+              <ExportBtn onClick={handleSaveRun} accent>
+                Guardar Run
+              </ExportBtn>
+            </div>
           )}
         </div>
 
-        {/* ──────── RIGHT: TIMELINE + DETAIL ──────── */}
+        {/* ──────── RIGHT PANEL: EDL Results ──────── */}
         <div
-          className="reveal-d2"
-          style={{ display: "flex", flexDirection: "column", gap: "var(--sp-5)" }}
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            gap: "var(--sp-4)",
+          }}
         >
-          {/* ── C) Empty state ── */}
+          {/* Empty state */}
           {!hasSegments && (
-            <EmptyState
-              icon={
-                <svg
-                  width="28"
-                  height="28"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="1.5"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <rect x="2" y="3" width="20" height="14" rx="2" />
-                  <path d="M8 21h8" />
-                  <path d="M12 17v4" />
-                  <path d="m10 9 4-2v6" />
-                </svg>
-              }
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                minHeight: "240px",
+                background: "var(--surface)",
+                border: "1px dashed var(--border)",
+                borderRadius: "var(--radius-lg)",
+                padding: "var(--sp-8)",
+              }}
             >
-              Pega un guion en el panel izquierdo, selecciona el formato y presiona
-              &quot;Analizar&quot; para generar el Edit Map con decisiones de edicion
-              automaticas.
-            </EmptyState>
+              <p
+                style={{
+                  fontFamily: "var(--font-body)",
+                  fontSize: "14px",
+                  color: "var(--muted)",
+                  textAlign: "center",
+                  lineHeight: 1.6,
+                  margin: 0,
+                }}
+              >
+                Peg&aacute; un gui&oacute;n y hac&eacute; click en Analizar
+              </p>
+            </div>
           )}
 
-          {/* ── A) Timeline ── */}
+          {/* Summary bar */}
           {hasSegments && (
-            <div>
-              <div
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "var(--sp-3)",
+                padding: "var(--sp-2) var(--sp-4)",
+                background: "var(--surface)",
+                borderRadius: "var(--radius-md)",
+                border: "1px solid var(--border-subtle)",
+              }}
+            >
+              <span
                 style={{
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                  marginBottom: "var(--sp-3)",
+                  fontFamily: "var(--font-mono)",
+                  fontSize: "12px",
+                  color: "var(--text-secondary)",
+                  fontWeight: 600,
                 }}
               >
-                <SectionLabel>Timeline</SectionLabel>
-                <span
-                  style={{
-                    fontSize: "10px",
-                    fontFamily: "var(--font-mono)",
-                    color: "var(--dim)",
-                  }}
-                >
-                  {segments.length} segmentos &middot; {fmtTime(totalDuration())}
-                </span>
-              </div>
+                {segments.length} segmentos
+              </span>
+              <span style={{ color: "var(--dim)", fontSize: "10px" }}>
+                &middot;
+              </span>
+              <span
+                style={{
+                  fontFamily: "var(--font-mono)",
+                  fontSize: "12px",
+                  color: "var(--accent)",
+                }}
+              >
+                {totalDuration}s
+              </span>
+              <span style={{ color: "var(--dim)", fontSize: "10px" }}>
+                &middot;
+              </span>
+              <span
+                style={{
+                  fontFamily: "var(--font-mono)",
+                  fontSize: "12px",
+                  color: "var(--muted)",
+                }}
+              >
+                {format}
+              </span>
+            </div>
+          )}
 
-              <div
-                style={{
-                  maxHeight: "380px",
-                  overflowY: "auto",
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: "var(--sp-1)",
-                  paddingRight: "var(--sp-2)",
-                }}
-              >
-                {segments.map((seg) => {
-                  const isSelected = seg.id === state.editMap.selectedId;
-                  return (
-                    <button
-                      key={seg.id}
+          {/* Segment list */}
+          {hasSegments && (
+            <div
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                gap: "var(--sp-2)",
+                maxHeight: "70vh",
+                overflowY: "auto",
+                paddingRight: "var(--sp-1)",
+              }}
+            >
+              {segments.map((seg, idx) => {
+                const isSelected = seg.id === selectedId;
+                const emotionColor =
+                  EMOTION_COLORS[seg.emotion] || EMOTION_COLORS.default;
+
+                return (
+                  <div key={seg.id}>
+                    {/* Segment card */}
+                    <div
                       onClick={() =>
-                        dispatch({
-                          type: "SET_EDITMAP_SELECTED",
-                          payload: seg.id,
-                        })
+                        dispatch({ type: "SET_DIR_SELECTED", payload: seg.id })
                       }
                       style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: "var(--sp-3)",
                         padding: "var(--sp-3) var(--sp-4)",
                         background: isSelected
-                          ? "color-mix(in srgb, var(--accent) 8%, var(--panel))"
-                          : "var(--panel)",
-                        border: "1px solid",
-                        borderColor: isSelected
-                          ? "var(--accent-border)"
-                          : "var(--border-subtle)",
-                        borderLeft: isSelected
-                          ? "3px solid var(--accent)"
-                          : "3px solid transparent",
+                          ? "var(--surface-2)"
+                          : "var(--surface)",
+                        border: isSelected
+                          ? "1px solid var(--accent-border)"
+                          : "1px solid var(--border-subtle)",
                         borderRadius: "var(--radius-md)",
                         cursor: "pointer",
                         transition: "all var(--transition-fast)",
-                        textAlign: "left",
-                        width: "100%",
-                        fontFamily: "var(--font-body)",
+                      }}
+                      onMouseEnter={(e) => {
+                        if (!isSelected)
+                          e.currentTarget.style.background =
+                            "var(--panel-hover)";
+                      }}
+                      onMouseLeave={(e) => {
+                        if (!isSelected)
+                          e.currentTarget.style.background = "var(--surface)";
                       }}
                     >
-                      {/* Segment number */}
-                      <span
-                        style={{
-                          fontSize: "10px",
-                          fontWeight: 700,
-                          fontFamily: "var(--font-mono)",
-                          color: isSelected ? "var(--accent)" : "var(--dim)",
-                          minWidth: "18px",
-                          flexShrink: 0,
-                        }}
-                      >
-                        {seg.id}
-                      </span>
-
-                      {/* Time badge */}
-                      <Badge
-                        color="var(--accent)"
-                        style={{
-                          fontSize: "9px",
-                          padding: "1px 6px",
-                          flexShrink: 0,
-                          fontFamily: "var(--font-mono)",
-                        }}
-                      >
-                        {fmtTime(seg.start)}-{fmtTime(seg.end)}
-                      </Badge>
-
-                      {/* Text preview */}
-                      <span
-                        style={{
-                          flex: 1,
-                          fontSize: "12px",
-                          color: isSelected
-                            ? "var(--text)"
-                            : "var(--text-secondary)",
-                          lineHeight: 1.4,
-                          overflow: "hidden",
-                          textOverflow: "ellipsis",
-                          whiteSpace: "nowrap",
-                        }}
-                      >
-                        {truncate(seg.text, 60)}
-                      </span>
-
-                      {/* Motion chip */}
-                      <Badge
-                        color="var(--warning)"
-                        style={{
-                          fontSize: "9px",
-                          padding: "1px 6px",
-                          flexShrink: 0,
-                        }}
-                      >
-                        {seg.motion.label}
-                      </Badge>
-
-                      {/* SFX chip */}
-                      {seg.sfx && seg.sfx.effect && (
-                        <Badge
-                          color="var(--success)"
-                          style={{
-                            fontSize: "9px",
-                            padding: "1px 6px",
-                            flexShrink: 0,
-                          }}
-                        >
-                          {seg.sfx.effect.length > 12
-                            ? seg.sfx.effect.slice(0, 12) + "..."
-                            : seg.sfx.effect}
-                        </Badge>
-                      )}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-
-          {/* ── B) Detail Panel ── */}
-          {hasSegments && selectedSeg && (
-            <div>
-              <SectionLabel style={{ marginBottom: "var(--sp-3)" }}>
-                Detalle del segmento #{selectedSeg.id}
-              </SectionLabel>
-
-              <Card
-                highlight
-                color="var(--accent)"
-                style={{ padding: "var(--sp-5)" }}
-              >
-                {/* ── Full text ── */}
-                <div style={{ marginBottom: "var(--sp-5)" }}>
-                  <FieldLabel>Texto completo</FieldLabel>
-                  <div
-                    style={{
-                      fontSize: "13px",
-                      fontFamily: "var(--font-body)",
-                      color: "var(--text)",
-                      lineHeight: 1.7,
-                      background: "var(--panel-2)",
-                      padding: "var(--sp-3) var(--sp-4)",
-                      borderRadius: "var(--radius-md)",
-                      border: "1px solid var(--border-subtle)",
-                    }}
-                  >
-                    {selectedSeg.text}
-                  </div>
-                </div>
-
-                {/* ── Detail grid ── */}
-                <div
-                  style={{
-                    display: "grid",
-                    gridTemplateColumns: "1fr 1fr",
-                    gap: "var(--sp-5)",
-                  }}
-                >
-                  {/* Motion */}
-                  <div>
-                    <FieldLabel>Motion</FieldLabel>
-                    <div
-                      style={{
-                        display: "flex",
-                        flexDirection: "column",
-                        gap: "var(--sp-2)",
-                      }}
-                    >
+                      {/* Header row */}
                       <div
                         style={{
                           display: "flex",
                           alignItems: "center",
                           gap: "var(--sp-2)",
+                          marginBottom: "var(--sp-2)",
+                          flexWrap: "wrap",
                         }}
                       >
-                        <Badge color="var(--warning)" style={{ fontSize: "10px" }}>
-                          {selectedSeg.motion.type}
-                        </Badge>
+                        {/* Segment # badge */}
                         <span
                           style={{
-                            fontSize: "12px",
-                            fontFamily: "var(--font-body)",
-                            color: "var(--text-secondary)",
+                            fontFamily: "var(--font-mono)",
+                            fontSize: "10px",
+                            fontWeight: 700,
+                            color: "var(--text)",
+                            background: "var(--panel-2)",
+                            padding: "1px 8px",
+                            borderRadius: "var(--radius-sm)",
+                            lineHeight: "18px",
+                          }}
+                        >
+                          #{idx + 1}
+                        </span>
+
+                        {/* Time range */}
+                        <span
+                          style={{
+                            fontFamily: "var(--font-mono)",
+                            fontSize: "11px",
+                            color: "var(--accent)",
                             fontWeight: 600,
                           }}
                         >
-                          {selectedSeg.motion.label}
+                          {fmtTime(seg.start)}&ndash;{fmtTime(seg.end)}
                         </span>
-                      </div>
-                      <div
-                        style={{
-                          fontSize: "11px",
-                          fontFamily: "var(--font-body)",
-                          color: "var(--muted)",
-                          fontStyle: "italic",
-                          lineHeight: 1.5,
-                        }}
-                      >
-                        {selectedSeg.motion.reason}
-                      </div>
-                      <Button
-                        size="sm"
-                        variant="secondary"
-                        onClick={() => cycleMotion(selectedSeg)}
-                        style={{ alignSelf: "flex-start", fontSize: "11px" }}
-                      >
-                        Cambiar motion
-                      </Button>
-                    </div>
-                  </div>
 
-                  {/* B-Roll */}
-                  <div>
-                    <FieldLabel>B-Roll</FieldLabel>
-                    <div
-                      style={{
-                        display: "flex",
-                        flexDirection: "column",
-                        gap: "var(--sp-2)",
-                      }}
-                    >
-                      <div
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          gap: "var(--sp-2)",
-                          marginBottom: "var(--sp-1)",
-                        }}
-                      >
-                        <Badge
-                          color="var(--accent)"
-                          style={{ fontSize: "9px", padding: "1px 6px" }}
-                        >
-                          {selectedSeg.broll?.type || "stock"}
-                        </Badge>
-                      </div>
-                      <Input
-                        value={selectedSeg.broll?.query || ""}
-                        onChange={(e) =>
-                          updateSeg(selectedSeg.id, {
-                            broll: {
-                              ...selectedSeg.broll,
-                              query: e.target.value,
-                            },
-                          })
-                        }
-                        placeholder="Search query para b-roll..."
-                        style={{ fontSize: "12px" }}
-                      />
-                    </div>
-                  </div>
-
-                  {/* SFX */}
-                  <div>
-                    <FieldLabel>SFX</FieldLabel>
-                    <div
-                      style={{
-                        display: "flex",
-                        flexDirection: "column",
-                        gap: "var(--sp-2)",
-                      }}
-                    >
-                      <div
-                        style={{
-                          fontSize: "12px",
-                          fontFamily: "var(--font-body)",
-                          color: "var(--text-secondary)",
-                        }}
-                      >
-                        {selectedSeg.sfx?.effect || "Sin SFX"}
-                      </div>
-                      <Input
-                        value={selectedSeg.sfx?.intensity || ""}
-                        onChange={(e) =>
-                          updateSeg(selectedSeg.id, {
-                            sfx: {
-                              ...selectedSeg.sfx,
-                              intensity: e.target.value,
-                            },
-                          })
-                        }
-                        placeholder="Intensidad (sutil, medio, fuerte)"
-                        style={{ fontSize: "12px" }}
-                      />
-                    </div>
-                  </div>
-
-                  {/* On-screen text */}
-                  <div>
-                    <FieldLabel>Texto en pantalla</FieldLabel>
-                    <Input
-                      value={selectedSeg.onScreenText || ""}
-                      onChange={(e) =>
-                        updateSeg(selectedSeg.id, {
-                          onScreenText: e.target.value,
-                        })
-                      }
-                      placeholder="Texto que aparecera en pantalla..."
-                      style={{ fontSize: "12px" }}
-                    />
-                  </div>
-                </div>
-
-                {/* Editor notes - full width */}
-                <div style={{ marginTop: "var(--sp-5)" }}>
-                  <FieldLabel>Notas del editor</FieldLabel>
-                  <Textarea
-                    value={selectedSeg.notes || ""}
-                    onChange={(e) =>
-                      updateSeg(selectedSeg.id, { notes: e.target.value })
-                    }
-                    placeholder="Notas adicionales para el editor..."
-                    rows={2}
-                    style={{ fontSize: "12px", minHeight: "auto" }}
-                  />
-                </div>
-
-                {/* Keywords */}
-                {selectedSeg.keywords && selectedSeg.keywords.length > 0 && (
-                  <div style={{ marginTop: "var(--sp-4)" }}>
-                    <FieldLabel>Keywords</FieldLabel>
-                    <div
-                      style={{
-                        display: "flex",
-                        flexWrap: "wrap",
-                        gap: "var(--sp-1)",
-                      }}
-                    >
-                      {selectedSeg.keywords.map((kw, i) => (
-                        <Badge
-                          key={i}
-                          color="var(--pink)"
+                        {/* Emotion badge */}
+                        <span
                           style={{
                             fontSize: "10px",
-                            padding: "1px 7px",
+                            fontWeight: 600,
+                            fontFamily: "var(--font-body)",
+                            color: emotionColor,
+                            background: `color-mix(in srgb, ${emotionColor} 12%, transparent)`,
+                            border: `1px solid color-mix(in srgb, ${emotionColor} 22%, transparent)`,
+                            padding: "1px 8px",
+                            borderRadius: "var(--radius-sm)",
+                            lineHeight: "18px",
+                            textTransform: "capitalize",
                           }}
                         >
-                          {kw}
-                        </Badge>
-                      ))}
+                          {seg.emotion || "default"}
+                        </span>
+                      </div>
+
+                      {/* Text preview */}
+                      <p
+                        style={{
+                          fontFamily: "var(--font-body)",
+                          fontSize: "12px",
+                          color: "var(--text-secondary)",
+                          lineHeight: 1.5,
+                          margin: "0 0 var(--sp-2) 0",
+                          overflow: "hidden",
+                          display: "-webkit-box",
+                          WebkitLineClamp: 2,
+                          WebkitBoxOrient: "vertical",
+                        }}
+                      >
+                        {seg.text.length > 100
+                          ? seg.text.slice(0, 100) + "..."
+                          : seg.text}
+                      </p>
+
+                      {/* Keywords pills */}
+                      {seg.keywords && seg.keywords.length > 0 && (
+                        <div
+                          style={{
+                            display: "flex",
+                            flexWrap: "wrap",
+                            gap: "4px",
+                            marginBottom: "var(--sp-2)",
+                          }}
+                        >
+                          {seg.keywords.map((kw, ki) => (
+                            <span
+                              key={ki}
+                              style={{
+                                fontSize: "10px",
+                                fontFamily: "var(--font-body)",
+                                color: "var(--text-secondary)",
+                                background: "var(--panel-2)",
+                                padding: "1px 7px",
+                                borderRadius: "var(--radius-sm)",
+                                lineHeight: "16px",
+                              }}
+                            >
+                              {kw}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Motion */}
+                      {seg.motion && (
+                        <div
+                          style={{
+                            display: "flex",
+                            alignItems: "baseline",
+                            gap: "var(--sp-2)",
+                            marginBottom: "var(--sp-1)",
+                          }}
+                        >
+                          <span
+                            style={{
+                              fontSize: "10px",
+                              fontWeight: 700,
+                              fontFamily: "var(--font-body)",
+                              color: "var(--warning)",
+                              textTransform: "uppercase",
+                              letterSpacing: "0.05em",
+                              flexShrink: 0,
+                            }}
+                          >
+                            Motion
+                          </span>
+                          <span
+                            style={{
+                              fontSize: "11px",
+                              fontFamily: "var(--font-body)",
+                              color: "var(--text-secondary)",
+                              fontWeight: 600,
+                            }}
+                          >
+                            {seg.motion.label}
+                          </span>
+                          <span
+                            style={{
+                              fontSize: "10px",
+                              fontFamily: "var(--font-body)",
+                              color: "var(--muted)",
+                              fontStyle: "italic",
+                            }}
+                          >
+                            {seg.motion.reason}
+                          </span>
+                        </div>
+                      )}
+
+                      {/* B-Roll */}
+                      {seg.broll && seg.broll.query && (
+                        <div
+                          style={{
+                            fontSize: "11px",
+                            fontFamily: "var(--font-body)",
+                            color: "var(--text-secondary)",
+                            fontStyle: "italic",
+                            marginBottom: "var(--sp-1)",
+                          }}
+                        >
+                          <span
+                            style={{
+                              fontWeight: 700,
+                              color: "var(--pink)",
+                              fontStyle: "normal",
+                              fontSize: "10px",
+                              textTransform: "uppercase",
+                              letterSpacing: "0.05em",
+                              marginRight: "var(--sp-2)",
+                            }}
+                          >
+                            B-Roll
+                          </span>
+                          &ldquo;{seg.broll.query}&rdquo;
+                        </div>
+                      )}
+
+                      {/* SFX */}
+                      {seg.sfx && seg.sfx.effect && (
+                        <div
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "var(--sp-2)",
+                            marginBottom: "var(--sp-1)",
+                          }}
+                        >
+                          <span
+                            style={{
+                              fontSize: "10px",
+                              fontWeight: 700,
+                              fontFamily: "var(--font-body)",
+                              color: "var(--success)",
+                              textTransform: "uppercase",
+                              letterSpacing: "0.05em",
+                            }}
+                          >
+                            SFX
+                          </span>
+                          <span
+                            style={{
+                              fontSize: "11px",
+                              fontFamily: "var(--font-body)",
+                              color: "var(--text-secondary)",
+                            }}
+                          >
+                            {seg.sfx.effect}
+                          </span>
+                          <span
+                            style={{
+                              fontSize: "9px",
+                              fontWeight: 600,
+                              fontFamily: "var(--font-body)",
+                              color: "var(--dim)",
+                              background: "var(--panel-2)",
+                              padding: "1px 6px",
+                              borderRadius: "var(--radius-sm)",
+                              lineHeight: "16px",
+                            }}
+                          >
+                            {seg.sfx.intensity}
+                          </span>
+                        </div>
+                      )}
+
+                      {/* On-Screen Text */}
+                      {seg.onScreenText && (
+                        <div
+                          style={{
+                            fontSize: "11px",
+                            fontFamily: "var(--font-body)",
+                            fontWeight: 600,
+                            color: "var(--accent)",
+                            marginBottom: "var(--sp-1)",
+                          }}
+                        >
+                          {seg.onScreenText}
+                        </div>
+                      )}
+
+                      {/* Notes */}
+                      {seg.notes && (
+                        <div
+                          style={{
+                            fontSize: "11px",
+                            fontFamily: "var(--font-body)",
+                            color: "var(--muted)",
+                            fontStyle: "italic",
+                          }}
+                        >
+                          {seg.notes}
+                        </div>
+                      )}
                     </div>
+
+                    {/* ── Expanded edit panel for selected segment ── */}
+                    {isSelected && (
+                      <div
+                        style={{
+                          marginTop: "var(--sp-1)",
+                          padding: "var(--sp-4)",
+                          background: "var(--surface-2)",
+                          border: "1px solid var(--accent-border)",
+                          borderTop: "none",
+                          borderRadius: "0 0 var(--radius-md) var(--radius-md)",
+                          display: "flex",
+                          flexDirection: "column",
+                          gap: "var(--sp-3)",
+                        }}
+                      >
+                        <FieldLabel>Motion type</FieldLabel>
+                        <select
+                          value={seg.motion?.type || "slow_zoom_in"}
+                          onChange={(e) => {
+                            const preset = MOTION_TYPES.find(
+                              (m) => m.type === e.target.value
+                            );
+                            updateSegment(seg.id, {
+                              motion: {
+                                ...seg.motion,
+                                type: e.target.value,
+                                label: preset ? preset.label : e.target.value,
+                              },
+                            });
+                          }}
+                          style={{
+                            width: "100%",
+                            fontFamily: "var(--font-body)",
+                            fontSize: "12px",
+                            color: "var(--text)",
+                            background: "var(--panel-2)",
+                            border: "1px solid var(--border)",
+                            borderRadius: "var(--radius-sm)",
+                            padding: "var(--sp-2) var(--sp-3)",
+                            outline: "none",
+                            cursor: "pointer",
+                          }}
+                        >
+                          {MOTION_TYPES.map((m) => (
+                            <option key={m.type} value={m.type}>
+                              {m.label}
+                            </option>
+                          ))}
+                        </select>
+
+                        <FieldLabel>B-roll query</FieldLabel>
+                        <input
+                          type="text"
+                          value={seg.broll?.query || ""}
+                          onChange={(e) =>
+                            updateSegment(seg.id, {
+                              broll: { ...seg.broll, query: e.target.value },
+                            })
+                          }
+                          placeholder="B-roll search query..."
+                          style={{
+                            width: "100%",
+                            fontFamily: "var(--font-body)",
+                            fontSize: "12px",
+                            color: "var(--text)",
+                            background: "var(--panel-2)",
+                            border: "1px solid var(--border)",
+                            borderRadius: "var(--radius-sm)",
+                            padding: "var(--sp-2) var(--sp-3)",
+                            outline: "none",
+                            boxSizing: "border-box",
+                          }}
+                        />
+
+                        <FieldLabel>SFX effect</FieldLabel>
+                        <input
+                          type="text"
+                          value={seg.sfx?.effect || ""}
+                          onChange={(e) =>
+                            updateSegment(seg.id, {
+                              sfx: { ...seg.sfx, effect: e.target.value },
+                            })
+                          }
+                          placeholder="SFX effect name..."
+                          style={{
+                            width: "100%",
+                            fontFamily: "var(--font-body)",
+                            fontSize: "12px",
+                            color: "var(--text)",
+                            background: "var(--panel-2)",
+                            border: "1px solid var(--border)",
+                            borderRadius: "var(--radius-sm)",
+                            padding: "var(--sp-2) var(--sp-3)",
+                            outline: "none",
+                            boxSizing: "border-box",
+                          }}
+                        />
+
+                        <FieldLabel>Notas</FieldLabel>
+                        <textarea
+                          value={seg.notes || ""}
+                          onChange={(e) =>
+                            updateSegment(seg.id, { notes: e.target.value })
+                          }
+                          placeholder="Notas adicionales para el editor..."
+                          rows={2}
+                          style={{
+                            width: "100%",
+                            fontFamily: "var(--font-body)",
+                            fontSize: "12px",
+                            color: "var(--text)",
+                            background: "var(--panel-2)",
+                            border: "1px solid var(--border)",
+                            borderRadius: "var(--radius-sm)",
+                            padding: "var(--sp-2) var(--sp-3)",
+                            outline: "none",
+                            resize: "vertical",
+                            lineHeight: 1.6,
+                            boxSizing: "border-box",
+                          }}
+                        />
+                      </div>
+                    )}
                   </div>
-                )}
-              </Card>
+                );
+              })}
             </div>
+          )}
+
+          {/* Reset button */}
+          {hasSegments && (
+            <button
+              onClick={() => dispatch({ type: "DIR_RESET" })}
+              style={{
+                alignSelf: "flex-start",
+                padding: "var(--sp-2) var(--sp-4)",
+                fontFamily: "var(--font-body)",
+                fontSize: "12px",
+                fontWeight: 600,
+                color: "var(--danger)",
+                background: "var(--danger-muted)",
+                border: "1px solid color-mix(in srgb, var(--danger) 25%, transparent)",
+                borderRadius: "var(--radius-md)",
+                cursor: "pointer",
+                transition: "all var(--transition-fast)",
+                marginTop: "var(--sp-2)",
+              }}
+              onMouseEnter={(e) =>
+                (e.target.style.background = "color-mix(in srgb, var(--danger) 20%, var(--surface))")
+              }
+              onMouseLeave={(e) =>
+                (e.target.style.background = "var(--danger-muted)")
+              }
+            >
+              Limpiar Todo
+            </button>
           )}
         </div>
       </div>
 
-      {/* ════════════ BOTTOM ACTIONS BAR ════════════ */}
-      {hasSegments && (
-        <div
-          style={{
-            marginTop: "var(--sp-8)",
-            paddingTop: "var(--sp-5)",
-            borderTop: "1px solid var(--border-subtle)",
-            display: "flex",
-            alignItems: "center",
-            gap: "var(--sp-3)",
-          }}
-        >
-          <Button variant="primary" onClick={handleExport}>
-            Export Edit Map JSON
-          </Button>
-          <Button variant="secondary" onClick={() => importRef.current?.click()}>
-            Import JSON
-          </Button>
-          <input
-            ref={importRef}
-            type="file"
-            accept=".json"
-            onChange={handleImportFile}
-            style={{ display: "none" }}
-          />
-          <Button variant="secondary" onClick={handleSave}>
-            Guardar proyecto
-          </Button>
-          <div style={{ flex: 1 }} />
-          <Button variant="ghost" onClick={handleReset}>
-            Reset
-          </Button>
-        </div>
-      )}
-
-      {/* Reset when no segments too */}
-      {!hasSegments && (state.editMap.raw || "").trim() && (
-        <div
-          style={{
-            marginTop: "var(--sp-6)",
-            display: "flex",
-            justifyContent: "flex-end",
-          }}
-        >
-          <Button variant="ghost" size="sm" onClick={handleReset}>
-            Reset
-          </Button>
-        </div>
-      )}
+      {/* ════ Mobile stacking override (via inline @media) ════ */}
+      <style>{`
+        @media (max-width: 768px) {
+          div[style*="grid-template-columns: 1fr 1fr"] {
+            grid-template-columns: 1fr !important;
+          }
+        }
+      `}</style>
     </div>
   );
 }
 
-// ════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════
 // HELPER COMPONENTS
-// ════════════════════════════════════════════════════════════
-
-function SectionLabel({ children, style: extraStyle }) {
-  return (
-    <div
-      style={{
-        fontSize: "10px",
-        fontWeight: 700,
-        fontFamily: "var(--font-body)",
-        color: "var(--dim)",
-        letterSpacing: "0.08em",
-        textTransform: "uppercase",
-        ...extraStyle,
-      }}
-    >
-      {children}
-    </div>
-  );
-}
+// ═══════════════════════════════════════════════════════════════
 
 function FieldLabel({ children }) {
   return (
@@ -896,7 +942,6 @@ function FieldLabel({ children }) {
         color: "var(--muted)",
         textTransform: "uppercase",
         letterSpacing: "0.06em",
-        marginBottom: "var(--sp-2)",
       }}
     >
       {children}
@@ -904,36 +949,37 @@ function FieldLabel({ children }) {
   );
 }
 
-function StatBlock({ label, value, color }) {
+function ExportBtn({ children, onClick, accent }) {
   return (
-    <div>
-      <div
-        style={{
-          fontSize: "10px",
-          fontFamily: "var(--font-body)",
-          color: "var(--dim)",
-          textTransform: "uppercase",
-          marginBottom: "4px",
-          fontWeight: 600,
-          letterSpacing: "0.06em",
-        }}
-      >
-        {label}
-      </div>
-      <div
-        style={{
-          fontSize: "15px",
-          fontFamily: "var(--font-body)",
-          color: color || "var(--text-secondary)",
-          fontWeight: 600,
-          overflow: "hidden",
-          textOverflow: "ellipsis",
-          whiteSpace: "nowrap",
-          lineHeight: 1.3,
-        }}
-      >
-        {value}
-      </div>
-    </div>
+    <button
+      onClick={onClick}
+      style={{
+        padding: "var(--sp-1) var(--sp-3)",
+        fontFamily: "var(--font-body)",
+        fontSize: "12px",
+        fontWeight: 600,
+        color: accent ? "var(--accent)" : "var(--text-secondary)",
+        background: accent ? "var(--accent-muted)" : "var(--panel-2)",
+        border: accent
+          ? "1px solid var(--accent-border)"
+          : "1px solid var(--border)",
+        borderRadius: "var(--radius-sm)",
+        cursor: "pointer",
+        transition: "all var(--transition-fast)",
+        lineHeight: "20px",
+      }}
+      onMouseEnter={(e) => {
+        e.target.style.background = accent
+          ? "color-mix(in srgb, var(--accent) 20%, var(--surface))"
+          : "var(--panel-hover)";
+      }}
+      onMouseLeave={(e) => {
+        e.target.style.background = accent
+          ? "var(--accent-muted)"
+          : "var(--panel-2)";
+      }}
+    >
+      {children}
+    </button>
   );
 }

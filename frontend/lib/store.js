@@ -3,47 +3,39 @@
 import { createContext, useContext, useReducer, useEffect } from "react";
 
 const STORAGE_KEY = "celeste-store";
-const STORAGE_VERSION = 4;
+const STORAGE_VERSION = 5;
 
 export const initialState = {
-  project: {
-    title: "",
-    durationSec: 60,
-    tone: "informativo",
-    language: "es",
-    aspectRatio: "9:16",
-  },
-  script: {
-    raw: "",
-    scenes: [],
-  },
-  edl: [],
-
-  /* Studio state */
-  studio: {
-    mode: "short_epico",
-    topic: "",
-    duration: 60,
-    audience: "",
-    hasCTA: true,
-    output: null,   // { script, prompts, casting, metadata }
-    batch: [],      // [{ id, topic, status: pending|running|done|error, output }]
+  /* Generator pipeline */
+  generator: {
+    step: 0, // 0=input, 1=script, 2=assets, 3=assemble, 4=output
+    config: {
+      topic: "",
+      mode: "short_epico",
+      duration: 60,
+      audience: "",
+      hasCTA: true,
+    },
+    script: null,
+    assets: null,
+    assembleProgress: 0,
+    output: null,
   },
 
-  /* Director edit map */
-  editMap: {
+  /* Director */
+  director: {
     raw: "",
     format: "short",
-    segments: [],   // [{ id, start, end, text, keywords[], motion, broll, sfx, onScreenText, notes }]
+    duration: 60,
+    segments: [],
     selectedId: null,
   },
 
-  /* Recent projects */
-  projects: [],  // [{ id, name, type: studio|director, createdAt, data }]
+  /* Saved runs */
+  runs: [],
 
+  /* Settings */
   settings: {
-    mvpapiBaseUrl: "",
-    mvpapiApiKey: "",
     openaiApiKey: "",
     anthropicApiKey: "",
   },
@@ -51,127 +43,83 @@ export const initialState = {
 
 function reducer(state, action) {
   switch (action.type) {
-    /* --- Legacy (keep for compatibility) --- */
-    case "SET_PROJECT":
-      return { ...state, project: { ...state.project, ...action.payload } };
-    case "SET_SCRIPT_RAW":
-      return { ...state, script: { ...state.script, raw: action.payload } };
-    case "SET_SCENES":
-      return { ...state, script: { ...state.script, scenes: action.payload } };
-    case "SET_SCRIPT":
-      return { ...state, script: action.payload };
-    case "SET_EDL":
-      return { ...state, edl: action.payload };
-    case "SET_SETTINGS":
-      return { ...state, settings: { ...state.settings, ...action.payload } };
-    case "IMPORT_SCRIPTPACK": {
-      const pack = action.payload;
+    /* --- Generator --- */
+    case "SET_GEN_STEP":
+      return { ...state, generator: { ...state.generator, step: action.payload } };
+    case "SET_GEN_CONFIG":
       return {
         ...state,
-        project: {
-          ...state.project,
-          title: pack.title || state.project.title,
-          durationSec: pack.durationSec || state.project.durationSec,
-          tone: pack.tone || state.project.tone,
-        },
-        script: {
-          raw: pack.scenes.map((s) => `[${fmtSec(s.startSec)}] ${s.narration}`).join("\n\n"),
-          scenes: pack.scenes,
+        generator: {
+          ...state.generator,
+          config: { ...state.generator.config, ...action.payload },
         },
       };
-    }
-    case "IMPORT_FULL_PROJECT": {
-      const data = action.payload;
-      return {
-        ...state,
-        project: data.project || state.project,
-        script: data.script || state.script,
-        edl: data.edl || state.edl,
-      };
-    }
+    case "SET_GEN_SCRIPT":
+      return { ...state, generator: { ...state.generator, script: action.payload } };
+    case "SET_GEN_ASSETS":
+      return { ...state, generator: { ...state.generator, assets: action.payload } };
+    case "SET_GEN_ASSEMBLE_PROGRESS":
+      return { ...state, generator: { ...state.generator, assembleProgress: action.payload } };
+    case "SET_GEN_OUTPUT":
+      return { ...state, generator: { ...state.generator, output: action.payload } };
+    case "GEN_RESET":
+      return { ...state, generator: initialState.generator };
 
-    /* --- Studio --- */
-    case "SET_STUDIO_CONFIG":
-      return { ...state, studio: { ...state.studio, ...action.payload, output: state.studio.output } };
-    case "SET_STUDIO_OUTPUT":
-      return { ...state, studio: { ...state.studio, output: action.payload } };
-    case "STUDIO_ADD_BATCH": {
-      const job = { id: Date.now(), topic: action.payload, status: "pending", output: null };
-      return { ...state, studio: { ...state.studio, batch: [...state.studio.batch, job] } };
-    }
-    case "STUDIO_UPDATE_BATCH": {
-      const { id, ...updates } = action.payload;
-      return {
-        ...state,
-        studio: {
-          ...state.studio,
-          batch: state.studio.batch.map((j) => (j.id === id ? { ...j, ...updates } : j)),
-        },
-      };
-    }
-    case "STUDIO_REMOVE_BATCH":
-      return {
-        ...state,
-        studio: { ...state.studio, batch: state.studio.batch.filter((j) => j.id !== action.payload) },
-      };
-    case "STUDIO_CLEAR_BATCH":
-      return { ...state, studio: { ...state.studio, batch: [] } };
-    case "STUDIO_RESET":
-      return { ...state, studio: initialState.studio };
-
-    /* --- Director Edit Map --- */
-    case "SET_EDITMAP_RAW":
-      return { ...state, editMap: { ...state.editMap, raw: action.payload } };
-    case "SET_EDITMAP_FORMAT":
-      return { ...state, editMap: { ...state.editMap, format: action.payload } };
-    case "SET_EDITMAP_SEGMENTS":
-      return { ...state, editMap: { ...state.editMap, segments: action.payload } };
-    case "SET_EDITMAP_SELECTED":
-      return { ...state, editMap: { ...state.editMap, selectedId: action.payload } };
-    case "UPDATE_SEGMENT": {
+    /* --- Director --- */
+    case "SET_DIR_RAW":
+      return { ...state, director: { ...state.director, raw: action.payload } };
+    case "SET_DIR_FORMAT":
+      return { ...state, director: { ...state.director, format: action.payload } };
+    case "SET_DIR_DURATION":
+      return { ...state, director: { ...state.director, duration: action.payload } };
+    case "SET_DIR_SEGMENTS":
+      return { ...state, director: { ...state.director, segments: action.payload } };
+    case "SET_DIR_SELECTED":
+      return { ...state, director: { ...state.director, selectedId: action.payload } };
+    case "UPDATE_DIR_SEGMENT": {
       const { id, ...changes } = action.payload;
       return {
         ...state,
-        editMap: {
-          ...state.editMap,
-          segments: state.editMap.segments.map((seg) =>
+        director: {
+          ...state.director,
+          segments: state.director.segments.map((seg) =>
             seg.id === id ? { ...seg, ...changes } : seg
           ),
         },
       };
     }
-    case "EDITMAP_RESET":
-      return { ...state, editMap: initialState.editMap };
+    case "DIR_RESET":
+      return { ...state, director: initialState.director };
 
-    /* --- Projects --- */
-    case "SAVE_PROJECT": {
-      const proj = {
+    /* --- Runs --- */
+    case "SAVE_RUN": {
+      const run = {
         id: action.payload.id || Date.now(),
-        name: action.payload.name,
-        type: action.payload.type,
         createdAt: new Date().toISOString(),
-        data: action.payload.data,
+        type: action.payload.type,
+        name: action.payload.name,
+        input: action.payload.input,
+        output: action.payload.output,
       };
-      const existing = state.projects.filter((p) => p.id !== proj.id);
-      return { ...state, projects: [proj, ...existing].slice(0, 20) };
+      const existing = state.runs.filter((r) => r.id !== run.id);
+      return { ...state, runs: [run, ...existing].slice(0, 50) };
     }
-    case "DELETE_PROJECT":
-      return { ...state, projects: state.projects.filter((p) => p.id !== action.payload) };
+    case "DELETE_RUN":
+      return { ...state, runs: state.runs.filter((r) => r.id !== action.payload) };
+
+    /* --- Settings --- */
+    case "SET_SETTINGS":
+      return { ...state, settings: { ...state.settings, ...action.payload } };
 
     /* --- System --- */
     case "HYDRATE":
       return { ...initialState, ...action.payload };
     case "RESET":
-      return { ...initialState, settings: state.settings, projects: state.projects };
+      return { ...initialState, settings: state.settings, runs: state.runs };
+
     default:
       return state;
   }
-}
-
-function fmtSec(totalSec) {
-  const m = Math.floor(totalSec / 60);
-  const s = Math.floor(totalSec % 60);
-  return `${m}:${s.toString().padStart(2, "0")}`;
 }
 
 const StoreContext = createContext(null);
@@ -189,7 +137,7 @@ export function StoreProvider({ children }) {
         }
       }
     } catch {
-      // Datos corruptos, se ignoran
+      // Corrupt data, ignore
     }
   }, []);
 
@@ -200,7 +148,7 @@ export function StoreProvider({ children }) {
         JSON.stringify({ _v: STORAGE_VERSION, data: state })
       );
     } catch {
-      // Storage lleno, se ignora
+      // Storage full, ignore
     }
   }, [state]);
 
@@ -213,6 +161,6 @@ export function StoreProvider({ children }) {
 
 export function useStore() {
   const ctx = useContext(StoreContext);
-  if (!ctx) throw new Error("useStore requiere StoreProvider");
+  if (!ctx) throw new Error("useStore requires StoreProvider");
   return ctx;
 }
