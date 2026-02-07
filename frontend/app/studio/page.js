@@ -2,12 +2,14 @@
 
 export const dynamic = "force-dynamic";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { useStore } from "@/lib/store";
 import { hasApiKeys, hasTtsKey } from "@/lib/storage";
 import { mockScript, mockEDL } from "@/lib/mock";
 import { downloadExportPack } from "@/lib/exportPack";
 import { generateSRT } from "@/lib/srt";
+import { isAIConnected } from "@/lib/aiProvidersConfig";
 import Topbar from "@/components/Topbar";
 import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
@@ -15,6 +17,7 @@ import Badge from "@/components/ui/Badge";
 import Stepper from "@/components/ui/Stepper";
 import TimelineRow from "@/components/ui/TimelineRow";
 import EmptyState from "@/components/ui/EmptyState";
+import Link from "next/link";
 
 const STEPS = [
   { id: 1, label: "Idea" },
@@ -40,6 +43,7 @@ const LANG_OPTIONS = [
 ];
 
 export default function StudioPage() {
+  const router = useRouter();
   const { state, dispatch } = useStore();
   const { step, idea, script, edl, voice, loading } = state.studio;
   const keysOk = hasApiKeys(state.settings);
@@ -47,7 +51,15 @@ export default function StudioPage() {
 
   const [toast, setToast] = useState(null);
   const [selectedSeg, setSelectedSeg] = useState(null);
+  const [claudeConnected, setClaudeConnected] = useState(false);
+
   function showToast(msg) { setToast(msg); setTimeout(() => setToast(null), 2000); }
+
+  // Guard: verificar si Claude está conectado
+  useEffect(() => {
+    const connected = isAIConnected("claude");
+    setClaudeConnected(connected);
+  }, []);
 
   function goStep(n) { dispatch({ type: "SET_STUDIO_STEP", payload: n }); }
 
@@ -162,6 +174,63 @@ export default function StudioPage() {
   }
 
   /* ══════ RENDER ══════ */
+
+  // Bloqueo si Claude no está conectado
+  if (!claudeConnected) {
+    return (
+      <div style={{ maxWidth: 600, margin: "0 auto" }}>
+        <Topbar title="AI Video Studio" badge="bloqueado" />
+        <Card
+          style={{
+            padding: "var(--sp-8) var(--sp-6)",
+            textAlign: "center",
+            background: "color-mix(in srgb, var(--danger) 5%, var(--panel))",
+            borderColor: "color-mix(in srgb, var(--danger) 20%, transparent)",
+          }}
+        >
+          <div
+            style={{
+              width: 48,
+              height: 48,
+              borderRadius: "50%",
+              background: "color-mix(in srgb, var(--danger) 12%, transparent)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              margin: "0 auto var(--sp-4)",
+            }}
+          >
+            <svg
+              width="24"
+              height="24"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="var(--danger)"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+              <path d="M7 11V7a5 5 0 0110 0v4" />
+            </svg>
+          </div>
+          <h2 style={{ fontSize: "18px", fontWeight: 600, color: "var(--danger)", marginBottom: "var(--sp-2)" }}>
+            Studio bloqueado
+          </h2>
+          <p style={{ fontSize: "13px", color: "var(--text-secondary)", lineHeight: 1.6, marginBottom: "var(--sp-5)" }}>
+            Necesitás conectar Claude (Anthropic) para usar el AI Video Studio.
+            <br />
+            Claude es obligatorio para generar guiones y EDLs.
+          </p>
+          <Link href="/settings/ai">
+            <Button variant="primary" size="lg">
+              Conectar Claude ahora
+            </Button>
+          </Link>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div style={{ position: "relative", maxWidth: 800 }}>

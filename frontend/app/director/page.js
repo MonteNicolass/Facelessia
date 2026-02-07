@@ -2,11 +2,13 @@
 
 export const dynamic = "force-dynamic";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { useStore } from "@/lib/store";
 import { hasApiKeys } from "@/lib/storage";
 import { mockEDL } from "@/lib/mock";
 import { generateSRT, generateShotlist } from "@/lib/srt";
+import { isAIConnected } from "@/lib/aiProvidersConfig";
 import Topbar from "@/components/Topbar";
 import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
@@ -14,8 +16,10 @@ import Badge from "@/components/ui/Badge";
 import Textarea from "@/components/ui/Textarea";
 import TimelineRow from "@/components/ui/TimelineRow";
 import EmptyState from "@/components/ui/EmptyState";
+import Link from "next/link";
 
 export default function DirectorPage() {
+  const router = useRouter();
   const { state, dispatch } = useStore();
   const { raw, edl, loading } = state.director;
   const keysOk = hasApiKeys(state.settings);
@@ -24,7 +28,15 @@ export default function DirectorPage() {
 
   const [toast, setToast] = useState(null);
   const [selectedId, setSelectedId] = useState(null);
+  const [claudeConnected, setClaudeConnected] = useState(false);
+
   function showToast(msg) { setToast(msg); setTimeout(() => setToast(null), 2000); }
+
+  // Guard: verificar si Claude está conectado
+  useEffect(() => {
+    const connected = isAIConnected("claude");
+    setClaudeConnected(connected);
+  }, []);
 
   /* ── Generate EDL from raw script ── */
   const handleGenerate = useCallback(async () => {
@@ -91,6 +103,63 @@ export default function DirectorPage() {
   }
 
   /* ══════ RENDER ══════ */
+
+  // Bloqueo si Claude no está conectado
+  if (!claudeConnected) {
+    return (
+      <div style={{ maxWidth: 600, margin: "0 auto" }}>
+        <Topbar title="Director" badge="bloqueado" />
+        <Card
+          style={{
+            padding: "var(--sp-8) var(--sp-6)",
+            textAlign: "center",
+            background: "color-mix(in srgb, var(--danger) 5%, var(--panel))",
+            borderColor: "color-mix(in srgb, var(--danger) 20%, transparent)",
+          }}
+        >
+          <div
+            style={{
+              width: 48,
+              height: 48,
+              borderRadius: "50%",
+              background: "color-mix(in srgb, var(--danger) 12%, transparent)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              margin: "0 auto var(--sp-4)",
+            }}
+          >
+            <svg
+              width="24"
+              height="24"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="var(--danger)"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+              <path d="M7 11V7a5 5 0 0110 0v4" />
+            </svg>
+          </div>
+          <h2 style={{ fontSize: "18px", fontWeight: 600, color: "var(--danger)", marginBottom: "var(--sp-2)" }}>
+            Director bloqueado
+          </h2>
+          <p style={{ fontSize: "13px", color: "var(--text-secondary)", lineHeight: 1.6, marginBottom: "var(--sp-5)" }}>
+            Necesitás conectar Claude (Anthropic) para usar Director.
+            <br />
+            Claude es obligatorio para generar EDLs desde guiones.
+          </p>
+          <Link href="/settings/ai">
+            <Button variant="primary" size="lg">
+              Conectar Claude ahora
+            </Button>
+          </Link>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div style={{ position: "relative" }}>
