@@ -2,11 +2,10 @@
 
 import PipelineNav from "./PipelineNav";
 
-// Layout principal: sidebar fija + área de contenido
+// Layout principal: sidebar fija + area de contenido
 export default function Shell({ children }) {
   return (
     <div style={{ display: "flex", minHeight: "100vh" }}>
-      {/* === SIDEBAR === */}
       <aside
         style={{
           width: "220px",
@@ -22,13 +21,7 @@ export default function Shell({ children }) {
           overflowY: "auto",
         }}
       >
-        {/* Logo */}
-        <div
-          style={{
-            padding: "20px 16px 16px",
-            borderBottom: "1px solid #141418",
-          }}
-        >
+        <div style={{ padding: "20px 16px 16px", borderBottom: "1px solid #141418" }}>
           <div
             style={{
               fontSize: "15px",
@@ -46,12 +39,10 @@ export default function Shell({ children }) {
           </div>
         </div>
 
-        {/* Navegación */}
-        <div style={{ flex: 1, padding: "12px 6px" }}>
+        <div style={{ flex: 1, padding: "12px 6px", display: "flex", flexDirection: "column" }}>
           <PipelineNav />
         </div>
 
-        {/* Footer sidebar */}
         <div
           style={{
             padding: "12px 16px",
@@ -61,16 +52,8 @@ export default function Shell({ children }) {
             justifyContent: "space-between",
           }}
         >
-          <span style={{ fontSize: "9px", color: "#2a2a2a" }}>v0.1</span>
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "5px",
-              fontSize: "9px",
-              color: "#333",
-            }}
-          >
+          <span style={{ fontSize: "9px", color: "#2a2a2a" }}>v0.2</span>
+          <div style={{ display: "flex", alignItems: "center", gap: "5px", fontSize: "9px", color: "#333" }}>
             <span
               style={{
                 width: "5px",
@@ -85,15 +68,7 @@ export default function Shell({ children }) {
         </div>
       </aside>
 
-      {/* === MAIN === */}
-      <main
-        style={{
-          flex: 1,
-          marginLeft: "220px",
-          minHeight: "100vh",
-          background: "#08080c",
-        }}
-      >
+      <main style={{ flex: 1, marginLeft: "220px", minHeight: "100vh", background: "#08080c" }}>
         {children}
       </main>
     </div>

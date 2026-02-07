@@ -1,575 +1,333 @@
 "use client";
 
 import { useState } from "react";
-import StepHeader from "@/components/StepHeader";
-import { mockEDL } from "@/data/mock";
+import Button from "@/components/ui/Button";
+import Card from "@/components/ui/Card";
+import Badge from "@/components/ui/Badge";
+import Tabs from "@/components/ui/Tabs";
+import { useStore } from "@/lib/store";
+import { parseScript, formatTime } from "@/lib/parser";
+import { generateMockEDL } from "@/lib/mock-generator";
+import { exportJSON, exportTXT } from "@/lib/exporters";
 
-// Director — Guía de edición completa (FEATURE CLAVE)
-// Esta es la pantalla más importante de Celeste.
-// Muestra el EDL como si fuera una hoja de edición profesional.
 export default function DirectorPage() {
-  const [expandedSeg, setExpandedSeg] = useState(1);
-  const [activeTab, setActiveTab] = useState("timeline");
-  const edl = mockEDL;
+  const { state, dispatch } = useStore();
+  const [tab, setTab] = useState("scenes");
+
+  function handleDetect() {
+    const scenes = parseScript(state.script.raw, state.project.durationSec);
+    dispatch({ type: "SET_SCENES", payload: scenes });
+  }
+
+  function handleGenerateEDL() {
+    if (state.script.scenes.length === 0) return;
+    const edl = generateMockEDL(state.script.scenes);
+    dispatch({ type: "SET_EDL", payload: edl });
+    setTab("edl");
+  }
+
+  function handleReset() {
+    dispatch({ type: "SET_SCRIPT", payload: { raw: "", scenes: [] } });
+    dispatch({ type: "SET_EDL", payload: [] });
+    setTab("scenes");
+  }
+
+  const hasScenes = state.script.scenes.length > 0;
+  const hasEDL = state.edl.length > 0;
 
   return (
-    <div style={{ padding: "40px 48px", maxWidth: "820px" }}>
-      <StepHeader
-        step="03"
-        color="#ec4899"
-        title="Editing Director"
-        description="Tu hoja de edición. Indica exactamente dónde van motions, b-roll y SFX con timestamps precisos. Vos solo ejecutás."
-      />
-
-      {/* Resumen editorial */}
-      <div
-        style={{
-          background: "linear-gradient(135deg, #ec489908, #8b5cf608)",
-          border: "1px solid #ec489918",
-          borderRadius: "10px",
-          padding: "16px 20px",
-          marginBottom: "24px",
-        }}
-      >
-        <div
-          style={{
-            fontSize: "12px",
-            color: "#999",
-            lineHeight: 1.7,
-          }}
-        >
-          {edl.resumen_edicion}
+    <div style={{ padding: "40px 48px", maxWidth: "1100px" }}>
+      {/* Header */}
+      <div style={{ marginBottom: "28px" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "8px" }}>
+          <Badge color="#ec4899">DIRECTOR</Badge>
+          <span style={{
+            fontSize: "8px",
+            fontWeight: 700,
+            background: "#ec489920",
+            color: "#ec4899",
+            padding: "2px 6px",
+            borderRadius: "3px",
+          }}>
+            KEY
+          </span>
         </div>
+        <h1 style={{ fontSize: "22px", fontWeight: 800, color: "#e5e5e5", margin: 0, letterSpacing: "-0.5px" }}>
+          Mapa de edicion
+        </h1>
+        <p style={{ fontSize: "12px", color: "#444", margin: "4px 0 0" }}>
+          Pega un guion, detecta escenas y genera el EDL completo.
+        </p>
       </div>
 
-      {/* Tabs */}
-      <div
-        style={{
-          display: "flex",
-          gap: "4px",
-          marginBottom: "20px",
-          background: "#0a0a0e",
-          padding: "3px",
-          borderRadius: "8px",
-          width: "fit-content",
-        }}
-      >
-        {[
-          { id: "timeline", label: "Timeline" },
-          { id: "shopping", label: "Shopping List" },
-          { id: "tips", label: "Tips" },
-        ].map((tab) => (
-          <button
-            key={tab.id}
-            onClick={() => setActiveTab(tab.id)}
-            style={{
-              padding: "6px 16px",
-              fontSize: "11px",
-              fontWeight: 600,
-              fontFamily: "inherit",
-              background: activeTab === tab.id ? "#ec489915" : "transparent",
-              color: activeTab === tab.id ? "#ec4899" : "#555",
-              border: "none",
-              borderRadius: "6px",
-              cursor: "pointer",
-              transition: "all 0.15s",
-            }}
-          >
-            {tab.label}
-          </button>
-        ))}
-      </div>
+      {/* 2-panel layout */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "24px", alignItems: "start" }}>
+        {/* === LEFT PANEL: Input === */}
+        <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
+          <SectionLabel>Guion</SectionLabel>
+          <textarea
+            value={state.script.raw}
+            onChange={(e) => dispatch({ type: "SET_SCRIPT_RAW", payload: e.target.value })}
+            placeholder={"Pega tu guion aca (con o sin timestamps).\n\nEjemplos de formatos:\n[0:00] Escena uno...\n(0:15) Escena dos...\n0:30 - Escena tres...\n\nO simplemente parrafos separados."}
+            rows={18}
+            style={textareaStyle}
+          />
 
-      {/* === TAB: TIMELINE === */}
-      {activeTab === "timeline" && (
-        <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-          {edl.timeline.map((item) => {
-            const isOpen = expandedSeg === item.segmento_id;
+          {/* Action buttons */}
+          <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
+            <Button
+              onClick={handleDetect}
+              disabled={!state.script.raw.trim()}
+            >
+              Detectar escenas
+            </Button>
+            <Button
+              variant="secondary"
+              onClick={handleGenerateEDL}
+              disabled={!hasScenes}
+            >
+              Generar EDL
+            </Button>
+            <Button variant="ghost" onClick={handleReset}>
+              Limpiar
+            </Button>
+          </div>
 
-            return (
-              <div
-                key={item.segmento_id}
-                onClick={() =>
-                  setExpandedSeg(isOpen ? null : item.segmento_id)
-                }
-                style={{
-                  background: isOpen ? "#ec489906" : "#0e0e12",
-                  border: isOpen
-                    ? "1px solid #ec489920"
-                    : "1px solid #141418",
-                  borderRadius: "10px",
-                  padding: "16px 20px",
-                  cursor: "pointer",
-                  transition: "all 0.15s",
-                }}
-              >
-                {/* Header */}
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "12px",
-                  }}
-                >
-                  {/* Segment number */}
-                  <span
-                    style={{
-                      width: "28px",
-                      height: "28px",
-                      borderRadius: "6px",
-                      background: isOpen ? "#ec489920" : "#ffffff06",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      fontSize: "12px",
-                      fontWeight: 700,
-                      color: isOpen ? "#ec4899" : "#444",
-                      flexShrink: 0,
-                    }}
-                  >
-                    {item.segmento_id}
-                  </span>
+          {/* Stats */}
+          {hasScenes && (
+            <Card>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "10px" }}>
+                <Stat label="Escenas" value={state.script.scenes.length} />
+                <Stat label="EDL entries" value={state.edl.length} />
+                <Stat
+                  label="Duracion total"
+                  value={
+                    state.script.scenes.length > 0
+                      ? formatTime(state.script.scenes[state.script.scenes.length - 1].endSec)
+                      : "\u2014"
+                  }
+                />
+              </div>
+            </Card>
+          )}
 
-                  {/* Tiempo */}
-                  <span
-                    style={{
-                      fontSize: "11px",
-                      fontWeight: 700,
-                      color: "#ec4899",
-                      fontVariantNumeric: "tabular-nums",
-                      flexShrink: 0,
-                    }}
-                  >
-                    {item.tiempo}
-                  </span>
+          {/* Export buttons */}
+          {hasEDL && (
+            <div style={{ display: "flex", gap: "8px" }}>
+              <Button size="sm" onClick={() => exportJSON(state.project, state.script, state.edl)}>
+                Exportar JSON
+              </Button>
+              <Button size="sm" variant="secondary" onClick={() => exportTXT(state.project, state.script, state.edl)}>
+                Exportar TXT
+              </Button>
+            </div>
+          )}
+        </div>
 
-                  {/* Preview */}
-                  <span
-                    style={{
-                      fontSize: "11px",
-                      color: "#666",
-                      flex: 1,
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
-                      whiteSpace: "nowrap",
-                    }}
-                  >
-                    {item.narracion_preview}
-                  </span>
+        {/* === RIGHT PANEL: Results === */}
+        <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
+          <Tabs
+            tabs={[
+              { id: "scenes", label: "Escenas", count: state.script.scenes.length || undefined },
+              { id: "edl", label: "EDL", count: state.edl.length || undefined },
+            ]}
+            active={tab}
+            onChange={setTab}
+          />
 
-                  {/* Motion badge */}
-                  <span
-                    style={{
-                      fontSize: "9px",
-                      fontWeight: 700,
-                      color: "#f59e0b",
-                      background: "#f59e0b12",
-                      padding: "2px 8px",
-                      borderRadius: "3px",
-                      flexShrink: 0,
-                    }}
-                  >
-                    {item.motion.tipo}
-                  </span>
-                </div>
-
-                {/* === Detalle expandido === */}
-                {isOpen && (
-                  <div
-                    style={{
-                      marginTop: "16px",
-                      paddingTop: "16px",
-                      borderTop: "1px solid #1a1a22",
-                    }}
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    {/* MOTION */}
-                    <div style={{ marginBottom: "16px" }}>
-                      <div style={sectionLabel("#f59e0b")}>Motion</div>
-                      <div style={detailBox}>
-                        <div
-                          style={{
-                            display: "flex",
-                            gap: "12px",
-                            marginBottom: "6px",
-                          }}
-                        >
-                          <span style={tag("#f59e0b")}>
-                            {item.motion.tipo}
-                          </span>
-                          <span style={tag("#f59e0b")}>
-                            {item.motion.velocidad}
-                          </span>
-                          <span style={tag("#f59e0b")}>
-                            {item.motion.desde}x &rarr; {item.motion.hasta}x
-                          </span>
-                        </div>
-                        <div style={{ fontSize: "11px", color: "#777" }}>
-                          {item.motion.nota}
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* B-ROLL */}
-                    {item.broll_inserts.length > 0 && (
-                      <div style={{ marginBottom: "16px" }}>
-                        <div style={sectionLabel("#6366f1")}>B-Roll</div>
-                        {item.broll_inserts.map((br, j) => (
-                          <div key={j} style={detailBox}>
-                            <div
-                              style={{
-                                display: "flex",
-                                alignItems: "center",
-                                gap: "10px",
-                                marginBottom: "6px",
-                              }}
-                            >
-                              <span style={tag("#6366f1")}>
-                                {br.timestamp}
-                              </span>
-                              <span
-                                style={{
-                                  fontSize: "11px",
-                                  color: "#888",
-                                  flex: 1,
-                                }}
-                              >
-                                {br.descripcion}
-                              </span>
-                            </div>
-                            <div
-                              style={{
-                                fontSize: "10px",
-                                color: "#6366f1",
-                                background: "#6366f108",
-                                padding: "6px 10px",
-                                borderRadius: "4px",
-                                marginBottom: "4px",
-                              }}
-                            >
-                              Buscar: &quot;{br.buscar_en_stock}&quot;
-                            </div>
-                            <div style={{ fontSize: "10px", color: "#555" }}>
-                              {br.razon}
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-
-                    {/* SFX */}
-                    {item.sfx.length > 0 && (
-                      <div style={{ marginBottom: "16px" }}>
-                        <div style={sectionLabel("#10b981")}>SFX</div>
-                        {item.sfx.map((sfx, j) => (
-                          <div key={j} style={{ ...detailBox, marginBottom: "6px" }}>
-                            <div
-                              style={{
-                                display: "flex",
-                                alignItems: "center",
-                                gap: "10px",
-                              }}
-                            >
-                              <span style={tag("#10b981")}>
-                                {sfx.timestamp}
-                              </span>
-                              <span
-                                style={{ fontSize: "11px", color: "#888" }}
-                              >
-                                {sfx.efecto}
-                              </span>
-                              <span
-                                style={{
-                                  fontSize: "9px",
-                                  color: "#555",
-                                  background: "#ffffff06",
-                                  padding: "1px 6px",
-                                  borderRadius: "3px",
-                                }}
-                              >
-                                {sfx.intensidad}
-                              </span>
-                            </div>
-                            {sfx.nota && (
-                              <div
-                                style={{
-                                  fontSize: "10px",
-                                  color: "#555",
-                                  marginTop: "4px",
-                                }}
-                              >
-                                {sfx.nota}
-                              </div>
-                            )}
-                          </div>
-                        ))}
-                      </div>
-                    )}
-
-                    {/* TEXTO EN PANTALLA */}
-                    {item.texto_pantalla?.mostrar && (
-                      <div style={{ marginBottom: "16px" }}>
-                        <div style={sectionLabel("#8b5cf6")}>
-                          Texto en pantalla
-                        </div>
-                        <div style={detailBox}>
-                          <div
-                            style={{
-                              display: "flex",
-                              gap: "10px",
-                              alignItems: "center",
-                            }}
-                          >
-                            <span style={tag("#8b5cf6")}>
-                              {item.texto_pantalla.desde} &rarr;{" "}
-                              {item.texto_pantalla.hasta}
-                            </span>
-                            <span
-                              style={{
-                                fontSize: "16px",
-                                fontWeight: 800,
-                                color: "#8b5cf6",
-                              }}
-                            >
-                              {item.texto_pantalla.texto}
-                            </span>
-                            <span
-                              style={{ fontSize: "10px", color: "#555" }}
-                            >
-                              {item.texto_pantalla.estilo}
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* TRANSICIÓN */}
-                    <div>
-                      <div style={sectionLabel("#555")}>
-                        Transici&oacute;n siguiente
-                      </div>
-                      <div
-                        style={{
-                          fontSize: "11px",
-                          color: "#666",
-                          display: "flex",
-                          gap: "8px",
-                        }}
-                      >
-                        <span style={tag("#555")}>
-                          {item.transicion_siguiente.tipo}
-                        </span>
-                        <span style={{ color: "#444" }}>
-                          {item.transicion_siguiente.duracion}s
-                        </span>
-                      </div>
-                    </div>
+          {/* Scenes tab */}
+          {tab === "scenes" && (
+            <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+              {!hasScenes && (
+                <EmptyState>
+                  Pega un guion a la izquierda y presiona &quot;Detectar escenas&quot; para comenzar.
+                </EmptyState>
+              )}
+              {state.script.scenes.map((s) => (
+                <Card key={s.id}>
+                  <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "6px" }}>
+                    <Badge color="#ec4899">#{s.id}</Badge>
+                    <Badge color="#8b5cf6">
+                      {formatTime(s.startSec)} - {formatTime(s.endSec)}
+                    </Badge>
+                    <span style={{ fontSize: "9px", color: "#333" }}>
+                      {s.endSec - s.startSec}s
+                    </span>
                   </div>
-                )}
-              </div>
-            );
-          })}
-        </div>
-      )}
-
-      {/* === TAB: SHOPPING LIST === */}
-      {activeTab === "shopping" && (
-        <div
-          style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" }}
-        >
-          {/* B-roll */}
-          <div
-            style={{
-              background: "#0e0e12",
-              border: "1px solid #141418",
-              borderRadius: "10px",
-              padding: "20px",
-            }}
-          >
-            <div
-              style={{
-                fontSize: "11px",
-                fontWeight: 700,
-                color: "#6366f1",
-                marginBottom: "14px",
-              }}
-            >
-              B-Roll a buscar ({edl.broll_shopping_list.length})
-            </div>
-            <div
-              style={{
-                display: "flex",
-                flexDirection: "column",
-                gap: "8px",
-              }}
-            >
-              {edl.broll_shopping_list.map((item, i) => (
-                <div
-                  key={i}
-                  style={{
-                    display: "flex",
-                    gap: "10px",
-                    alignItems: "flex-start",
-                  }}
-                >
-                  <span
-                    style={{
-                      width: "16px",
-                      height: "16px",
-                      borderRadius: "3px",
-                      border: "1px solid #333",
-                      flexShrink: 0,
-                      marginTop: "1px",
-                    }}
-                  />
-                  <span style={{ fontSize: "11px", color: "#888" }}>
-                    {item}
-                  </span>
-                </div>
+                  <div style={{ fontSize: "11px", color: "#888", lineHeight: "1.5" }}>
+                    {s.narration}
+                  </div>
+                  {s.visualPrompt && (
+                    <div style={{
+                      fontSize: "10px",
+                      color: "#555",
+                      fontStyle: "italic",
+                      background: "#111116",
+                      padding: "6px 10px",
+                      borderRadius: "4px",
+                      marginTop: "6px",
+                    }}>
+                      {s.visualPrompt}
+                    </div>
+                  )}
+                </Card>
               ))}
             </div>
-          </div>
+          )}
 
-          {/* SFX */}
-          <div
-            style={{
-              background: "#0e0e12",
-              border: "1px solid #141418",
-              borderRadius: "10px",
-              padding: "20px",
-            }}
-          >
-            <div
-              style={{
-                fontSize: "11px",
-                fontWeight: 700,
-                color: "#10b981",
-                marginBottom: "14px",
-              }}
-            >
-              SFX a descargar ({edl.sfx_shopping_list.length})
-            </div>
-            <div
-              style={{
-                display: "flex",
-                flexDirection: "column",
-                gap: "8px",
-              }}
-            >
-              {edl.sfx_shopping_list.map((item, i) => (
-                <div
-                  key={i}
-                  style={{
-                    display: "flex",
-                    gap: "10px",
-                    alignItems: "flex-start",
-                  }}
-                >
-                  <span
-                    style={{
-                      width: "16px",
-                      height: "16px",
-                      borderRadius: "3px",
-                      border: "1px solid #333",
-                      flexShrink: 0,
-                      marginTop: "1px",
-                    }}
-                  />
-                  <span style={{ fontSize: "11px", color: "#888" }}>
-                    {item}
-                  </span>
-                </div>
+          {/* EDL tab */}
+          {tab === "edl" && (
+            <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+              {!hasEDL && (
+                <EmptyState>
+                  Primero detecta escenas, luego presiona &quot;Generar EDL&quot;.
+                </EmptyState>
+              )}
+              {state.edl.map((entry) => (
+                <EDLCard key={entry.id} entry={entry} />
               ))}
             </div>
-          </div>
+          )}
         </div>
-      )}
-
-      {/* === TAB: TIPS === */}
-      {activeTab === "tips" && (
-        <div
-          style={{
-            background: "#0e0e12",
-            border: "1px solid #141418",
-            borderRadius: "10px",
-            padding: "20px",
-          }}
-        >
-          <div
-            style={{
-              fontSize: "11px",
-              fontWeight: 700,
-              color: "#ec4899",
-              marginBottom: "14px",
-            }}
-          >
-            Tips de edici&oacute;n
-          </div>
-          <div
-            style={{
-              display: "flex",
-              flexDirection: "column",
-              gap: "10px",
-            }}
-          >
-            {edl.tips_finales.map((tip, i) => (
-              <div
-                key={i}
-                style={{
-                  display: "flex",
-                  gap: "10px",
-                  alignItems: "flex-start",
-                }}
-              >
-                <span
-                  style={{
-                    fontSize: "10px",
-                    color: "#333",
-                    marginTop: "2px",
-                    flexShrink: 0,
-                  }}
-                >
-                  {String(i + 1).padStart(2, "0")}
-                </span>
-                <span style={{ fontSize: "12px", color: "#888", lineHeight: 1.6 }}>
-                  {tip}
-                </span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      <div style={{ fontSize: "10px", color: "#333", marginTop: "16px" }}>
-        Click en cada segmento para ver instrucciones completas &middot; Datos mock
       </div>
     </div>
   );
 }
 
-// --- Estilos helpers ---
-const sectionLabel = (color) => ({
-  fontSize: "9px",
-  fontWeight: 700,
-  color: color,
-  textTransform: "uppercase",
-  letterSpacing: "1px",
-  marginBottom: "6px",
-});
+// --- EDL Card ---
+function EDLCard({ entry }) {
+  return (
+    <Card>
+      {/* Header row */}
+      <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "10px", flexWrap: "wrap" }}>
+        <Badge color="#ec4899">#{entry.id}</Badge>
+        <Badge color="#8b5cf6">
+          {formatTime(entry.startSec)} - {formatTime(entry.endSec)}
+        </Badge>
+        <Badge color="#f59e0b">{entry.motion}</Badge>
+        <Badge color="#10b981">{entry.motionSpeed}</Badge>
+      </div>
 
-const detailBox = {
+      {/* Motion */}
+      <Row label="Motion">
+        <span style={{ color: "#ccc" }}>{entry.motion}</span>
+        <span style={{ color: "#555", fontSize: "10px", marginLeft: "6px" }}>
+          {entry.motionFrom} &rarr; {entry.motionTo}
+        </span>
+        <Reason>{entry.motionReason}</Reason>
+      </Row>
+
+      {/* B-Roll */}
+      <Row label="B-Roll">
+        <span style={{ color: "#8b5cf6", fontSize: "10px" }}>{entry.brollTimestamp}</span>
+        <div style={{
+          fontSize: "10px",
+          color: "#ccc",
+          background: "#111116",
+          padding: "4px 8px",
+          borderRadius: "4px",
+          marginTop: "3px",
+          fontFamily: "monospace",
+        }}>
+          {entry.brollQuery}
+        </div>
+        <Reason>{entry.brollReason}</Reason>
+      </Row>
+
+      {/* SFX */}
+      <Row label="SFX">
+        <span style={{ color: "#ccc" }}>{entry.sfx.efecto}</span>
+        <span style={{ color: "#555", fontSize: "9px", marginLeft: "4px" }}>
+          ({entry.sfx.intensidad})
+        </span>
+      </Row>
+
+      {/* Transition */}
+      <Row label="Transicion">
+        <span style={{ color: "#ccc" }}>{entry.transition.tipo}</span>
+        {entry.transition.duracion > 0 && (
+          <span style={{ color: "#555", fontSize: "9px", marginLeft: "4px" }}>
+            {entry.transition.duracion}s
+          </span>
+        )}
+      </Row>
+    </Card>
+  );
+}
+
+// --- Helpers ---
+function SectionLabel({ children }) {
+  return (
+    <label style={{
+      fontSize: "10px",
+      fontWeight: 700,
+      color: "#555",
+      letterSpacing: "0.5px",
+      textTransform: "uppercase",
+      display: "block",
+    }}>
+      {children}
+    </label>
+  );
+}
+
+function Stat({ label, value }) {
+  return (
+    <div>
+      <div style={{ fontSize: "9px", color: "#444", textTransform: "uppercase", marginBottom: "2px" }}>
+        {label}
+      </div>
+      <div style={{ fontSize: "13px", color: "#999", fontWeight: 600 }}>{value}</div>
+    </div>
+  );
+}
+
+function Row({ label, children }) {
+  return (
+    <div style={{ marginBottom: "8px" }}>
+      <span style={{ fontSize: "9px", color: "#444", textTransform: "uppercase", marginRight: "6px", fontWeight: 700 }}>
+        {label}:
+      </span>
+      <div style={{ fontSize: "11px", color: "#888", marginTop: "2px" }}>{children}</div>
+    </div>
+  );
+}
+
+function Reason({ children }) {
+  return (
+    <div style={{ fontSize: "9px", color: "#555", fontStyle: "italic", marginTop: "2px" }}>
+      {children}
+    </div>
+  );
+}
+
+function EmptyState({ children }) {
+  return (
+    <div style={{
+      padding: "40px 20px",
+      textAlign: "center",
+      fontSize: "12px",
+      color: "#333",
+      border: "1px dashed #1a1a22",
+      borderRadius: "10px",
+    }}>
+      {children}
+    </div>
+  );
+}
+
+const textareaStyle = {
+  width: "100%",
   background: "#111116",
-  borderRadius: "6px",
-  padding: "10px 12px",
+  border: "1px solid #1a1a22",
+  borderRadius: "8px",
+  padding: "12px 14px",
+  fontSize: "12px",
+  color: "#ccc",
+  fontFamily: "inherit",
+  outline: "none",
+  resize: "vertical",
+  lineHeight: "1.6",
+  transition: "border-color 0.15s",
+  minHeight: "320px",
 };
-
-const tag = (color) => ({
-  fontSize: "10px",
-  fontWeight: 700,
-  color: color,
-  background: `${color}12`,
-  padding: "2px 8px",
-  borderRadius: "3px",
-  fontVariantNumeric: "tabular-nums",
-  flexShrink: 0,
-});

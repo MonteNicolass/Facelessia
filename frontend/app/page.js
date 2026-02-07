@@ -1,13 +1,19 @@
 "use client";
 
 import Link from "next/link";
-import { pipelineSteps, mockConfig } from "@/data/mock";
+import Card from "@/components/ui/Card";
+import Badge from "@/components/ui/Badge";
+import { useStore } from "@/lib/store";
 
-// Overview — vista general del pipeline y estado del proyecto
+// Overview — entrada principal, links a las dos herramientas
 export default function OverviewPage() {
+  const { state } = useStore();
+  const hasProject = state.project.title.length > 0;
+  const hasScenes = state.script.scenes.length > 0;
+  const hasEdl = state.edl.length > 0;
+
   return (
-    <div style={{ padding: "40px 48px", maxWidth: "800px" }}>
-      {/* Header */}
+    <div style={{ padding: "40px 48px", maxWidth: "720px" }}>
       <div style={{ marginBottom: "40px" }}>
         <h1
           style={{
@@ -18,208 +24,95 @@ export default function OverviewPage() {
             letterSpacing: "-0.5px",
           }}
         >
-          De una idea a un video casi listo
+          Celeste
         </h1>
         <p style={{ fontSize: "13px", color: "#444", margin: 0 }}>
-          Pipeline completo: tema &rarr; script &rarr; direcci&oacute;n editorial &rarr; video con motions
+          Pipeline de video faceless. Dos modos de trabajo, un mismo objetivo.
         </p>
       </div>
 
-      {/* Pipeline visual */}
-      <div style={{ marginBottom: "40px" }}>
-        <div
-          style={{
-            fontSize: "9px",
-            fontWeight: 700,
-            color: "#333",
-            letterSpacing: "1.5px",
-            textTransform: "uppercase",
-            marginBottom: "16px",
-          }}
-        >
-          Flujo de trabajo
-        </div>
-
-        <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-          {pipelineSteps.map((step, i) => (
-            <div key={step.id}>
-              <Link
-                href={step.href}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "16px",
-                  padding: "16px 20px",
-                  background: "#0e0e12",
-                  border: step.isKey
-                    ? `1px solid ${step.color}30`
-                    : "1px solid #141418",
-                  borderRadius: "10px",
-                  textDecoration: "none",
-                  transition: "all 0.15s",
-                  cursor: "pointer",
-                }}
-              >
-                {/* Número */}
-                <span
-                  style={{
-                    width: "36px",
-                    height: "36px",
-                    borderRadius: "8px",
-                    background: `${step.color}12`,
-                    border: `1px solid ${step.color}25`,
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    fontSize: "13px",
-                    fontWeight: 800,
-                    color: step.color,
-                    flexShrink: 0,
-                  }}
-                >
-                  {step.icon}
-                </span>
-
-                {/* Info */}
-                <div style={{ flex: 1 }}>
-                  <div
-                    style={{
-                      fontSize: "14px",
-                      fontWeight: 700,
-                      color: "#ccc",
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "8px",
-                    }}
-                  >
-                    {step.label}
-                    {step.isKey && (
-                      <span
-                        style={{
-                          fontSize: "8px",
-                          background: `${step.color}20`,
-                          color: step.color,
-                          padding: "2px 6px",
-                          borderRadius: "3px",
-                          fontWeight: 700,
-                        }}
-                      >
-                        FEATURE CLAVE
-                      </span>
-                    )}
-                  </div>
-                  <div
-                    style={{ fontSize: "11px", color: "#444", marginTop: "2px" }}
-                  >
-                    {step.subtitle}
-                  </div>
-                </div>
-
-                {/* Arrow */}
-                <span style={{ fontSize: "14px", color: "#333" }}>&rarr;</span>
-              </Link>
-
-              {/* Conector */}
-              {i < pipelineSteps.length - 1 && (
-                <div
-                  style={{
-                    display: "flex",
-                    justifyContent: "center",
-                    padding: "2px 0",
-                  }}
-                >
-                  <div
-                    style={{
-                      width: "1px",
-                      height: "8px",
-                      background: "#1a1a22",
-                    }}
-                  />
-                </div>
-              )}
+      {/* Herramientas */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px", marginBottom: "32px" }}>
+        <Link href="/autovideos" style={{ textDecoration: "none" }}>
+          <Card color="#8b5cf6" style={{ cursor: "pointer", height: "100%" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "10px" }}>
+              <Badge color="#8b5cf6">WIZARD</Badge>
+              <span style={{ fontSize: "14px", fontWeight: 700, color: "#ccc" }}>AutoVideos</span>
             </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Proyecto actual */}
-      <div
-        style={{
-          background: "#0e0e12",
-          border: "1px solid #141418",
-          borderRadius: "10px",
-          padding: "20px",
-        }}
-      >
-        <div
-          style={{
-            fontSize: "9px",
-            fontWeight: 700,
-            color: "#333",
-            letterSpacing: "1.5px",
-            textTransform: "uppercase",
-            marginBottom: "14px",
-          }}
-        >
-          Proyecto actual
-        </div>
-
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "1fr 1fr",
-            gap: "12px",
-          }}
-        >
-          {[
-            { label: "Tema", value: mockConfig.tema, span: true },
-            { label: "Duración", value: `${mockConfig.duracion}s` },
-            { label: "Estilo", value: mockConfig.estilo },
-            { label: "Tono", value: mockConfig.tono },
-            { label: "Plataforma", value: mockConfig.plataforma },
-          ].map((item, i) => (
-            <div
-              key={i}
-              style={{
-                gridColumn: item.span ? "1 / -1" : "auto",
-              }}
-            >
-              <div
-                style={{
-                  fontSize: "9px",
-                  color: "#444",
-                  marginBottom: "3px",
-                  textTransform: "uppercase",
-                  letterSpacing: "0.5px",
-                }}
-              >
-                {item.label}
-              </div>
-              <div style={{ fontSize: "12px", color: "#999" }}>
-                {item.value}
-              </div>
+            <p style={{ fontSize: "12px", color: "#666", lineHeight: 1.6, margin: 0 }}>
+              Flujo guiado en 3 pasos: configurar, generar guion, exportar.
+              Todo automatizado con datos mock.
+            </p>
+            <div style={{ fontSize: "10px", color: "#8b5cf6", marginTop: "12px" }}>
+              Abrir &rarr;
             </div>
-          ))}
-        </div>
+          </Card>
+        </Link>
+
+        <Link href="/director" style={{ textDecoration: "none" }}>
+          <Card highlight color="#ec4899" style={{ cursor: "pointer", height: "100%" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "10px" }}>
+              <Badge color="#ec4899">PRO</Badge>
+              <span style={{ fontSize: "14px", fontWeight: 700, color: "#ccc" }}>Director</span>
+            </div>
+            <p style={{ fontSize: "12px", color: "#666", lineHeight: 1.6, margin: 0 }}>
+              Peg&aacute; tu guion, detect&aacute; escenas, y gener&aacute; un mapa editorial
+              completo con motions, b-roll y SFX.
+            </p>
+            <div style={{ fontSize: "10px", color: "#ec4899", marginTop: "12px" }}>
+              Abrir &rarr;
+            </div>
+          </Card>
+        </Link>
       </div>
 
-      {/* Key feature callout */}
-      <div
-        style={{
-          marginTop: "16px",
-          background: "linear-gradient(135deg, #ec489908, #8b5cf608)",
-          border: "1px solid #ec489918",
-          borderRadius: "10px",
-          padding: "16px 20px",
-        }}
-      >
-        <div style={{ fontSize: "12px", color: "#888", lineHeight: 1.7 }}>
-          <strong style={{ color: "#ec4899" }}>Editing Director</strong> analiza
-          tu gui&oacute;n y te dice exactamente d&oacute;nde van los motions,
-          d&oacute;nde insertar b-roll y qu&eacute; SFX usar. Vos solo
-          busc&aacute;s el material y lo pon&eacute;s.
+      {/* Estado actual */}
+      {hasProject && (
+        <Card style={{ marginBottom: "16px" }}>
+          <div
+            style={{
+              fontSize: "9px",
+              fontWeight: 700,
+              color: "#333",
+              letterSpacing: "1.5px",
+              textTransform: "uppercase",
+              marginBottom: "12px",
+            }}
+          >
+            Proyecto actual
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "10px" }}>
+            <div>
+              <div style={{ fontSize: "9px", color: "#444", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: "2px" }}>
+                Titulo
+              </div>
+              <div style={{ fontSize: "12px", color: "#999" }}>{state.project.title}</div>
+            </div>
+            <div>
+              <div style={{ fontSize: "9px", color: "#444", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: "2px" }}>
+                Escenas
+              </div>
+              <div style={{ fontSize: "12px", color: "#999" }}>{hasScenes ? state.script.scenes.length : "—"}</div>
+            </div>
+            <div>
+              <div style={{ fontSize: "9px", color: "#444", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: "2px" }}>
+                EDL
+              </div>
+              <div style={{ fontSize: "12px", color: "#999" }}>{hasEdl ? `${state.edl.length} entries` : "—"}</div>
+            </div>
+          </div>
+        </Card>
+      )}
+
+      {/* Info */}
+      <Card>
+        <div style={{ fontSize: "12px", color: "#555", lineHeight: 1.7 }}>
+          <strong style={{ color: "#ec4899" }}>Director</strong> es la feature clave.
+          Analiza tu guion y te dice exactamente d&oacute;nde van los motions,
+          d&oacute;nde insertar b-roll con queries de b&uacute;squeda, y qu&eacute; SFX
+          usar en cada momento. Vos solo busc&aacute;s el material y lo pon&eacute;s.
         </div>
-      </div>
+      </Card>
     </div>
   );
 }

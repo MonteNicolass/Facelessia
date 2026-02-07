@@ -1,5 +1,5 @@
 import "./globals.css";
-import Shell from "@/components/Shell";
+import Providers from "@/components/Providers";
 
 export const metadata = {
   title: "Celeste",
@@ -10,7 +10,7 @@ export default function RootLayout({ children }) {
   return (
     <html lang="es">
       <body>
-        <Shell>{children}</Shell>
+        <Providers>{children}</Providers>
       </body>
     </html>
   );
