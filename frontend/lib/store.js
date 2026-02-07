@@ -3,98 +3,104 @@
 import { createContext, useContext, useReducer, useEffect } from "react";
 
 const STORAGE_KEY = "celeste-store";
-const STORAGE_VERSION = 7;
+const STORAGE_VERSION = 8;
 
 export const initialState = {
-  /* AI Video Studio */
+  currentProjectId: null,
+
   studio: {
-    config: { topic: "", duration: 60, style: "epica", language: "es" },
-    scenes: [],
-    casting: [],
+    step: 1,
+    idea: { topic: "", duration: 60, language: "es", tone: "epica" },
+    script: { text: "", segments: [] },
+    edl: null,
+    voice: { audioUrl: null, loading: false },
     loading: false,
   },
 
-  /* Director Pro */
   director: {
     raw: "",
-    mode: "short_epico",
-    detectTimestamps: true,
-    clips: [],
-    selectedId: null,
+    edl: null,
+    loading: false,
   },
 
-  /* Saved projects */
   projects: [],
+
+  settings: {
+    llmProvider: "openai",
+    openaiKey: "",
+    anthropicKey: "",
+    openaiModel: "gpt-4o-mini",
+    anthropicModel: "claude-sonnet-4-20250514",
+    elevenlabsKey: "",
+    elevenlabsVoice: "Antoni",
+  },
 };
 
 function reducer(state, action) {
   switch (action.type) {
-    /* --- Studio --- */
-    case "SET_STUDIO_CONFIG":
-      return { ...state, studio: { ...state.studio, config: { ...state.studio.config, ...action.payload } } };
-    case "SET_STUDIO_SCENES":
-      return { ...state, studio: { ...state.studio, scenes: action.payload, loading: false } };
-    case "SET_STUDIO_CASTING":
-      return { ...state, studio: { ...state.studio, casting: action.payload } };
+    case "SET_STUDIO_STEP":
+      return { ...state, studio: { ...state.studio, step: action.payload } };
+    case "SET_STUDIO_IDEA":
+      return { ...state, studio: { ...state.studio, idea: { ...state.studio.idea, ...action.payload } } };
+    case "SET_STUDIO_SCRIPT":
+      return { ...state, studio: { ...state.studio, script: { ...state.studio.script, ...action.payload } } };
+    case "SET_STUDIO_EDL":
+      return { ...state, studio: { ...state.studio, edl: action.payload, loading: false } };
+    case "SET_STUDIO_VOICE":
+      return { ...state, studio: { ...state.studio, voice: { ...state.studio.voice, ...action.payload } } };
     case "SET_STUDIO_LOADING":
       return { ...state, studio: { ...state.studio, loading: action.payload } };
-    case "UPDATE_STUDIO_SCENE": {
-      const { id, ...changes } = action.payload;
-      return {
-        ...state,
-        studio: {
-          ...state.studio,
-          scenes: state.studio.scenes.map((s) => (s.id === id ? { ...s, ...changes } : s)),
-        },
-      };
-    }
     case "STUDIO_RESET":
       return { ...state, studio: initialState.studio };
 
-    /* --- Director --- */
     case "SET_DIR_RAW":
       return { ...state, director: { ...state.director, raw: action.payload } };
-    case "SET_DIR_MODE":
-      return { ...state, director: { ...state.director, mode: action.payload } };
-    case "SET_DIR_DETECT_TS":
-      return { ...state, director: { ...state.director, detectTimestamps: action.payload } };
-    case "SET_DIR_CLIPS":
-      return { ...state, director: { ...state.director, clips: action.payload } };
-    case "SET_DIR_SELECTED":
-      return { ...state, director: { ...state.director, selectedId: action.payload } };
-    case "UPDATE_DIR_CLIP": {
-      const { id, ...changes } = action.payload;
-      return {
-        ...state,
-        director: {
-          ...state.director,
-          clips: state.director.clips.map((c) => (c.id === id ? { ...c, ...changes } : c)),
-        },
-      };
-    }
+    case "SET_DIR_EDL":
+      return { ...state, director: { ...state.director, edl: action.payload, loading: false } };
+    case "SET_DIR_LOADING":
+      return { ...state, director: { ...state.director, loading: action.payload } };
     case "DIR_RESET":
       return { ...state, director: initialState.director };
 
-    /* --- Projects --- */
     case "SAVE_PROJECT": {
       const proj = {
         id: action.payload.id || Date.now(),
         name: action.payload.name,
-        type: action.payload.type,
-        createdAt: new Date().toISOString(),
+        mode: action.payload.mode,
+        createdAt: action.payload.createdAt || new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
         data: action.payload.data,
       };
       const rest = state.projects.filter((p) => p.id !== proj.id);
-      return { ...state, projects: [proj, ...rest].slice(0, 30) };
+      return { ...state, projects: [proj, ...rest].slice(0, 50), currentProjectId: proj.id };
     }
     case "DELETE_PROJECT":
-      return { ...state, projects: state.projects.filter((p) => p.id !== action.payload) };
+      return {
+        ...state,
+        projects: state.projects.filter((p) => p.id !== action.payload),
+        currentProjectId: state.currentProjectId === action.payload ? null : state.currentProjectId,
+      };
+    case "SET_CURRENT_PROJECT":
+      return { ...state, currentProjectId: action.payload };
+    case "LOAD_PROJECT": {
+      const proj = state.projects.find((p) => p.id === action.payload);
+      if (!proj) return state;
+      const next = { ...state, currentProjectId: proj.id };
+      if (proj.mode === "studio" && proj.data) {
+        next.studio = { ...initialState.studio, ...proj.data };
+      } else if (proj.mode === "director" && proj.data) {
+        next.director = { ...initialState.director, ...proj.data };
+      }
+      return next;
+    }
 
-    /* --- System --- */
+    case "SET_SETTINGS":
+      return { ...state, settings: { ...state.settings, ...action.payload } };
+
     case "HYDRATE":
       return { ...initialState, ...action.payload };
     case "RESET":
-      return { ...initialState, projects: state.projects };
+      return { ...initialState, projects: state.projects, settings: state.settings };
 
     default:
       return state;
