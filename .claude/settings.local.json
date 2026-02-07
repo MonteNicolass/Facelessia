@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git add:*)",
+      "Bash(git commit -m \"$\\(cat <<''EOF''\nfeat: initial project — Python pipeline + Next.js frontend shell\n\nBackend: full faceless video pipeline \\(script, images, audio, editing director, video assembly\\).\nFrontend: Next.js app with pipeline architecture visualization.\n\nCo-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>\nEOF\n\\)\")"
+    ]
+  }
+}

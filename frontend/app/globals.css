@@ -20,19 +20,23 @@ body {
 }
 
 ::selection {
-  background: #ec489940;
+  background: #8b5cf640;
   color: #fff;
 }
 
 ::-webkit-scrollbar {
-  width: 6px;
+  width: 5px;
 }
 
 ::-webkit-scrollbar-track {
-  background: #08080c;
+  background: transparent;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #222;
+  background: #1a1a22;
   border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #333;
 }
