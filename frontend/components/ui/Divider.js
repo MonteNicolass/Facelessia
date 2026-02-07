@@ -1,3 +1,5 @@
+"use client";
+
 export default function Divider({ style: extraStyle }) {
   return (
     <div

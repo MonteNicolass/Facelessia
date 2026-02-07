@@ -1,3 +1,5 @@
+"use client";
+
 export default function EmptyState({ children, icon }) {
   return (
     <div
@@ -13,11 +15,25 @@ export default function EmptyState({ children, icon }) {
       }}
     >
       {icon && (
-        <div style={{ fontSize: "20px", color: "var(--dim)", marginBottom: "var(--sp-1)" }}>
+        <div
+          style={{
+            fontSize: "20px",
+            color: "var(--dim)",
+            marginBottom: "var(--sp-1)",
+          }}
+        >
           {icon}
         </div>
       )}
-      <div style={{ fontSize: "13px", color: "var(--muted)", lineHeight: 1.6, maxWidth: "320px" }}>
+      <div
+        style={{
+          fontSize: "13px",
+          fontFamily: "var(--font-body)",
+          color: "var(--muted)",
+          lineHeight: 1.6,
+          maxWidth: "320px",
+        }}
+      >
         {children}
       </div>
     </div>

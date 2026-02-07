@@ -10,7 +10,7 @@ export default function Button({
   type = "button",
 }) {
   const base = {
-    fontFamily: "inherit",
+    fontFamily: "var(--font-body)",
     fontWeight: 600,
     border: "1px solid transparent",
     borderRadius: "var(--radius-md)",
@@ -19,10 +19,11 @@ export default function Button({
     display: "inline-flex",
     alignItems: "center",
     justifyContent: "center",
-    gap: "6px",
+    gap: "var(--sp-1)",
     opacity: disabled ? 0.35 : 1,
     whiteSpace: "nowrap",
     lineHeight: 1,
+    letterSpacing: "0.01em",
   };
 
   const sizes = {
@@ -34,7 +35,7 @@ export default function Button({
   const variants = {
     primary: {
       background: "var(--accent)",
-      color: "#fff",
+      color: "var(--bg)",
       borderColor: "var(--accent)",
     },
     secondary: {
@@ -50,7 +51,7 @@ export default function Button({
     danger: {
       background: "var(--danger-muted)",
       color: "var(--danger)",
-      borderColor: "rgba(239,68,68,0.15)",
+      borderColor: "var(--danger-muted)",
     },
   };
 

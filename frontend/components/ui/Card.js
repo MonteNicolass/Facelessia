@@ -1,17 +1,24 @@
+"use client";
+
 export default function Card({
   children,
   highlight = false,
   color,
   style: extraStyle,
+  ...rest
 }) {
-  const bg = highlight && color ? `${color}06` : "var(--panel)";
-  const border = highlight && color ? `${color}20` : "var(--border)";
+  const isHighlighted = highlight && color;
 
   return (
     <div
+      {...rest}
       style={{
-        background: bg,
-        border: `1px solid ${border}`,
+        background: isHighlighted
+          ? `color-mix(in srgb, ${color} 4%, var(--panel))`
+          : "var(--panel)",
+        border: isHighlighted
+          ? `1px solid color-mix(in srgb, ${color} 15%, transparent)`
+          : "1px solid var(--border)",
         borderRadius: "var(--radius-lg)",
         padding: "var(--sp-4) var(--sp-5)",
         ...extraStyle,

@@ -23,7 +23,7 @@ export default function Input({
         padding: "var(--sp-2) var(--sp-3)",
         fontSize: "13px",
         color: "var(--text)",
-        fontFamily: "inherit",
+        fontFamily: "var(--font-body)",
         outline: "none",
         transition: "border-color var(--transition-fast)",
         opacity: disabled ? 0.5 : 1,

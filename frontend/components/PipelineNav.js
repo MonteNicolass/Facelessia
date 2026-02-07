@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
+/* ── Navigation data ─────────────────────────────────────────────── */
+
 const NAV = [
   {
     id: "overview",
@@ -10,7 +12,10 @@ const NAV = [
     href: "/",
     icon: (
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <rect x="3" y="3" width="7" height="7" /><rect x="14" y="3" width="7" height="7" /><rect x="3" y="14" width="7" height="7" /><rect x="14" y="14" width="7" height="7" />
+        <rect x="3" y="3" width="7" height="7" />
+        <rect x="14" y="3" width="7" height="7" />
+        <rect x="3" y="14" width="7" height="7" />
+        <rect x="14" y="14" width="7" height="7" />
       </svg>
     ),
   },
@@ -36,7 +41,8 @@ const TOOLS = [
     isKey: true,
     icon: (
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M12 20h9" /><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
+        <path d="M12 20h9" />
+        <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
       </svg>
     ),
   },
@@ -56,6 +62,8 @@ const BOTTOM = [
   },
 ];
 
+/* ── NavItem component ───────────────────────────────────────────── */
+
 function NavItem({ item, isActive }) {
   return (
     <Link
@@ -64,13 +72,40 @@ function NavItem({ item, isActive }) {
         display: "flex",
         alignItems: "center",
         gap: "var(--sp-3)",
-        padding: "8px 12px",
+        padding: "8px var(--sp-3)",
         borderRadius: "var(--radius-md)",
         textDecoration: "none",
         background: isActive ? "var(--accent-muted)" : "transparent",
         transition: "all var(--transition-fast)",
+        position: "relative",
+        marginBottom: "2px",
+      }}
+      onMouseEnter={(e) => {
+        if (!isActive) {
+          e.currentTarget.style.background = "var(--panel-hover)";
+        }
+      }}
+      onMouseLeave={(e) => {
+        if (!isActive) {
+          e.currentTarget.style.background = "transparent";
+        }
       }}
     >
+      {/* Active indicator bar */}
+      {isActive && (
+        <div style={{
+          position: "absolute",
+          left: 0,
+          top: "6px",
+          bottom: "6px",
+          width: "2px",
+          borderRadius: "var(--radius-full)",
+          background: "var(--accent)",
+          transition: "opacity var(--transition-fast)",
+        }} />
+      )}
+
+      {/* Icon */}
       <span
         style={{
           color: isActive ? "var(--accent)" : "var(--dim)",
@@ -82,15 +117,19 @@ function NavItem({ item, isActive }) {
       >
         {item.icon}
       </span>
+
+      {/* Label + description */}
       <div style={{ minWidth: 0, flex: 1 }}>
         <div
           style={{
             fontSize: "13px",
             fontWeight: isActive ? 600 : 500,
             color: isActive ? "var(--text)" : "var(--text-secondary)",
+            fontFamily: "var(--font-body)",
             display: "flex",
             alignItems: "center",
             gap: "6px",
+            transition: "color var(--transition-fast), font-weight var(--transition-fast)",
           }}
         >
           {item.label}
@@ -99,11 +138,15 @@ function NavItem({ item, isActive }) {
               style={{
                 fontSize: "9px",
                 fontWeight: 700,
+                fontFamily: "var(--font-mono)",
                 background: "var(--accent-muted)",
                 color: "var(--accent)",
-                padding: "1px 5px",
+                padding: "1px 6px",
                 borderRadius: "var(--radius-sm)",
                 lineHeight: "14px",
+                letterSpacing: "0.4px",
+                textTransform: "uppercase",
+                border: "1px solid var(--accent-border)",
               }}
             >
               PRO
@@ -111,7 +154,13 @@ function NavItem({ item, isActive }) {
           )}
         </div>
         {item.desc && (
-          <div style={{ fontSize: "11px", color: "var(--dim)", marginTop: "1px" }}>
+          <div style={{
+            fontSize: "11px",
+            color: "var(--dim)",
+            marginTop: "1px",
+            fontFamily: "var(--font-body)",
+            letterSpacing: "0.1px",
+          }}>
             {item.desc}
           </div>
         )}
@@ -119,6 +168,8 @@ function NavItem({ item, isActive }) {
     </Link>
   );
 }
+
+/* ── PipelineNav ─────────────────────────────────────────────────── */
 
 export default function PipelineNav() {
   const pathname = usePathname();
@@ -129,31 +180,44 @@ export default function PipelineNav() {
       : pathname === item.href || pathname.startsWith(item.href + "/");
 
   return (
-    <nav style={{ display: "flex", flexDirection: "column", height: "100%", gap: "2px" }}>
+    <nav style={{
+      display: "flex",
+      flexDirection: "column",
+      height: "100%",
+      gap: "2px",
+    }}>
+      {/* Main + Tools groups */}
       <div style={{ flex: 1 }}>
+        {/* NAV group */}
         {NAV.map((item) => (
           <NavItem key={item.id} item={item} isActive={isActive(item)} />
         ))}
 
-        <div
-          style={{
-            fontSize: "10px",
-            fontWeight: 600,
-            color: "var(--dim)",
-            padding: "var(--sp-4) var(--sp-3) var(--sp-2)",
-            letterSpacing: "0.5px",
-            textTransform: "uppercase",
-          }}
-        >
+        {/* Tools section header */}
+        <div style={{
+          fontSize: "10px",
+          fontWeight: 600,
+          color: "var(--dim)",
+          padding: "var(--sp-5) var(--sp-3) var(--sp-2)",
+          letterSpacing: "0.8px",
+          textTransform: "uppercase",
+          fontFamily: "var(--font-body)",
+        }}>
           Herramientas
         </div>
 
+        {/* TOOLS group */}
         {TOOLS.map((item) => (
           <NavItem key={item.id} item={item} isActive={isActive(item)} />
         ))}
       </div>
 
-      <div style={{ borderTop: "1px solid var(--border-subtle)", paddingTop: "var(--sp-2)" }}>
+      {/* Bottom group */}
+      <div style={{
+        borderTop: "1px solid var(--border-subtle)",
+        paddingTop: "var(--sp-2)",
+        marginTop: "var(--sp-2)",
+      }}>
         {BOTTOM.map((item) => (
           <NavItem key={item.id} item={item} isActive={isActive(item)} />
         ))}

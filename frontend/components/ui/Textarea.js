@@ -23,7 +23,7 @@ export default function Textarea({
         padding: "var(--sp-3)",
         fontSize: "13px",
         color: "var(--text)",
-        fontFamily: "inherit",
+        fontFamily: "var(--font-body)",
         outline: "none",
         resize: "vertical",
         lineHeight: 1.6,

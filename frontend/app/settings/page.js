@@ -19,6 +19,7 @@ export default function SettingsPage() {
   const { state, dispatch } = useStore();
   const fileRef = useRef(null);
   const [importMsg, setImportMsg] = useState(null);
+  const [focusedField, setFocusedField] = useState(null);
 
   function handleClearData() {
     if (typeof window !== "undefined") {
@@ -60,36 +61,59 @@ export default function SettingsPage() {
     state.edl.length > 0;
 
   return (
-    <div style={{ maxWidth: "620px" }}>
-      {/* Header */}
-      <div style={{ marginBottom: "var(--sp-6)" }}>
-        <Badge color="var(--muted)">SETTINGS</Badge>
-        <h1 style={{ fontSize: "22px", marginTop: "var(--sp-2)", marginBottom: "var(--sp-1)" }}>
-          Configuracion
-        </h1>
-        <p style={{ fontSize: "13px" }}>
+    <div style={{ maxWidth: "640px" }}>
+      {/* ── Header ── */}
+      <div className="reveal" style={{ marginBottom: "var(--sp-8)" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "var(--sp-3)", marginBottom: "var(--sp-2)" }}>
+          <h1 style={{
+            fontFamily: "var(--font-display)",
+            fontWeight: 400,
+            fontSize: "28px",
+            color: "var(--text)",
+            margin: 0,
+            lineHeight: 1.2,
+          }}>
+            Configuracion
+          </h1>
+          <Badge color="var(--muted)" style={{ position: "relative", top: "1px" }}>SETTINGS</Badge>
+        </div>
+        <p style={{
+          fontFamily: "var(--font-body)",
+          fontSize: "13px",
+          color: "var(--text-secondary)",
+          margin: 0,
+          lineHeight: 1.6,
+        }}>
           Integraciones, datos locales y export/import de proyecto.
         </p>
       </div>
 
-      <div style={{ display: "flex", flexDirection: "column", gap: "var(--sp-4)" }}>
-        {/* --- Integracion futura --- */}
-        <Card>
+      <div style={{ display: "flex", flexDirection: "column", gap: "var(--sp-6)" }}>
+
+        {/* ── API Keys ── */}
+        <Card className="reveal-d1">
           <SectionLabel>Integracion futura (API keys)</SectionLabel>
-          <p style={{ fontSize: "12px", color: "var(--muted)", margin: "var(--sp-2) 0 var(--sp-4)", lineHeight: 1.6 }}>
+          <p style={{
+            fontFamily: "var(--font-body)",
+            fontSize: "12px",
+            color: "var(--muted)",
+            margin: "var(--sp-2) 0 var(--sp-5)",
+            lineHeight: 1.7,
+          }}>
             Cuando conectes un backend o IA, configura las keys aca.
             Se guardan en localStorage (nunca se envian a ningun servidor).
           </p>
-          <div style={{ display: "flex", flexDirection: "column", gap: "var(--sp-3)" }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: "var(--sp-4)" }}>
             {API_FIELDS.map((field) => (
               <div key={field.key}>
                 <label style={{
+                  fontFamily: "var(--font-mono)",
                   fontSize: "10px",
-                  fontWeight: 700,
+                  fontWeight: 600,
                   color: "var(--dim)",
                   display: "block",
-                  marginBottom: "var(--sp-1)",
-                  letterSpacing: "0.3px",
+                  marginBottom: "6px",
+                  letterSpacing: "0.5px",
                   textTransform: "uppercase",
                 }}>
                   {field.label}
@@ -98,21 +122,30 @@ export default function SettingsPage() {
                   type="password"
                   value={state.settings?.[field.key] || ""}
                   onChange={(e) => handleSettingChange(field.key, e.target.value)}
+                  onFocus={() => setFocusedField(field.key)}
+                  onBlur={() => setFocusedField(null)}
                   placeholder={field.placeholder}
                   style={{
                     width: "100%",
+                    boxSizing: "border-box",
                     background: "var(--panel-2)",
-                    border: "1px solid var(--border)",
+                    border: `1px solid ${focusedField === field.key ? "var(--accent)" : "var(--border)"}`,
                     borderRadius: "var(--radius-md)",
                     padding: "var(--sp-2) var(--sp-3)",
                     fontSize: "12px",
                     color: "var(--text)",
-                    fontFamily: "inherit",
+                    fontFamily: "var(--font-body)",
                     outline: "none",
                     transition: "border-color var(--transition-fast)",
                   }}
                 />
-                <div style={{ fontSize: "10px", color: "var(--dim)", marginTop: "var(--sp-1)" }}>
+                <div style={{
+                  fontFamily: "var(--font-body)",
+                  fontSize: "10px",
+                  color: "var(--dim)",
+                  marginTop: "var(--sp-1)",
+                  lineHeight: 1.5,
+                }}>
                   {field.help}
                 </div>
               </div>
@@ -120,13 +153,19 @@ export default function SettingsPage() {
           </div>
         </Card>
 
-        {/* --- Import/Export --- */}
-        <Card>
+        {/* ── Import / Export ── */}
+        <Card className="reveal-d2">
           <SectionLabel>Import / Export proyecto</SectionLabel>
-          <p style={{ fontSize: "12px", color: "var(--muted)", margin: "var(--sp-2) 0 var(--sp-4)", lineHeight: 1.6 }}>
+          <p style={{
+            fontFamily: "var(--font-body)",
+            fontSize: "12px",
+            color: "var(--muted)",
+            margin: "var(--sp-2) 0 var(--sp-5)",
+            lineHeight: 1.7,
+          }}>
             Exporta todo el proyecto (escenas + EDL) como JSON, o importa uno previo.
           </p>
-          <div style={{ display: "flex", gap: "var(--sp-2)", alignItems: "center" }}>
+          <div style={{ display: "flex", gap: "var(--sp-3)", alignItems: "center" }}>
             <Button size="sm" onClick={handleExportProject} disabled={!hasData}>
               Exportar proyecto
             </Button>
@@ -142,7 +181,7 @@ export default function SettingsPage() {
             />
           </div>
           {importMsg && (
-            <div style={{ marginTop: "var(--sp-3)" }}>
+            <div style={{ marginTop: "var(--sp-4)" }}>
               <InlineNotice variant={importMsg.ok ? "success" : "error"}>
                 {importMsg.text}
               </InlineNotice>
@@ -150,13 +189,19 @@ export default function SettingsPage() {
           )}
         </Card>
 
-        {/* --- Almacenamiento --- */}
-        <Card>
+        {/* ── Almacenamiento ── */}
+        <Card className="reveal-d3">
           <SectionLabel>Almacenamiento local</SectionLabel>
-          <p style={{ fontSize: "12px", color: "var(--muted)", margin: "var(--sp-2) 0 var(--sp-4)", lineHeight: 1.6 }}>
+          <p style={{
+            fontFamily: "var(--font-body)",
+            fontSize: "12px",
+            color: "var(--muted)",
+            margin: "var(--sp-2) 0 var(--sp-5)",
+            lineHeight: 1.7,
+          }}>
             Todos los datos se guardan en localStorage. No se envia nada a ningun servidor.
           </p>
-          <div style={{ display: "flex", gap: "var(--sp-2)", alignItems: "center" }}>
+          <div style={{ display: "flex", gap: "var(--sp-3)", alignItems: "center" }}>
             <Button
               variant="danger"
               size="sm"
@@ -165,16 +210,36 @@ export default function SettingsPage() {
             >
               Borrar todos los datos
             </Button>
-            <span style={{ fontSize: "11px", color: hasData ? "var(--muted)" : "var(--dim)" }}>
+            <span style={{
+              fontFamily: "var(--font-body)",
+              fontSize: "11px",
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "6px",
+              color: hasData ? "var(--text-secondary)" : "var(--dim)",
+            }}>
+              <span style={{
+                display: "inline-block",
+                width: "6px",
+                height: "6px",
+                borderRadius: "var(--radius-full)",
+                background: hasData ? "var(--success)" : "var(--dim)",
+                flexShrink: 0,
+              }} />
               {hasData ? "Hay datos guardados" : "Sin datos"}
             </span>
           </div>
         </Card>
 
-        {/* --- Proyecto actual --- */}
-        <Card>
+        {/* ── Proyecto actual ── */}
+        <Card className="reveal-d4">
           <SectionLabel>Proyecto actual</SectionLabel>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "var(--sp-3)", marginTop: "var(--sp-3)" }}>
+          <div style={{
+            display: "grid",
+            gridTemplateColumns: "1fr 1fr 1fr",
+            gap: "var(--sp-4)",
+            marginTop: "var(--sp-4)",
+          }}>
             <Field label="Titulo" value={state.project.title || "Sin titulo"} />
             <Field label="Duracion" value={`${state.project.durationSec}s`} />
             <Field label="Tono" value={state.project.tone} />
@@ -184,21 +249,31 @@ export default function SettingsPage() {
           </div>
         </Card>
 
-        {/* --- About --- */}
-        <Card>
+        {/* ── About ── */}
+        <Card className="reveal-d5">
           <div style={{
-            fontSize: "15px",
-            fontWeight: 800,
-            background: "linear-gradient(135deg, var(--accent), var(--pink))",
+            fontFamily: "var(--font-display)",
+            fontWeight: 400,
+            fontSize: "22px",
+            lineHeight: 1.2,
+            background: "linear-gradient(135deg, var(--accent), var(--accent-hover))",
             WebkitBackgroundClip: "text",
             WebkitTextFillColor: "transparent",
           }}>
             Celeste
           </div>
-          <div style={{ fontSize: "11px", color: "var(--dim)", marginTop: "var(--sp-1)", lineHeight: 1.6 }}>
+          <div style={{
+            fontFamily: "var(--font-body)",
+            fontSize: "11px",
+            color: "var(--dim)",
+            marginTop: "var(--sp-2)",
+            lineHeight: 1.7,
+          }}>
             Video faceless pipeline — de una idea a un video casi listo.
             <br />
-            Frontend v0.3 &middot; Sin backend activo &middot; Datos 100% locales
+            <span style={{ fontSize: "10px", letterSpacing: "0.3px" }}>
+              Frontend v0.3 &middot; Sin backend activo &middot; Datos 100% locales
+            </span>
           </div>
         </Card>
       </div>
@@ -209,10 +284,11 @@ export default function SettingsPage() {
 function SectionLabel({ children }) {
   return (
     <div style={{
+      fontFamily: "var(--font-body)",
       fontSize: "11px",
       fontWeight: 600,
       color: "var(--dim)",
-      letterSpacing: "0.5px",
+      letterSpacing: "0.6px",
       textTransform: "uppercase",
     }}>
       {children}
@@ -223,10 +299,24 @@ function SectionLabel({ children }) {
 function Field({ label, value }) {
   return (
     <div>
-      <div style={{ fontSize: "10px", color: "var(--dim)", textTransform: "uppercase", marginBottom: "2px", fontWeight: 600, letterSpacing: "0.3px" }}>
+      <div style={{
+        fontFamily: "var(--font-body)",
+        fontSize: "10px",
+        color: "var(--dim)",
+        textTransform: "uppercase",
+        marginBottom: "4px",
+        fontWeight: 600,
+        letterSpacing: "0.4px",
+      }}>
         {label}
       </div>
-      <div style={{ fontSize: "13px", color: "var(--text-secondary)", fontWeight: 600 }}>
+      <div style={{
+        fontFamily: "var(--font-body)",
+        fontSize: "13px",
+        color: "var(--text-secondary)",
+        fontWeight: 500,
+        lineHeight: 1.4,
+      }}>
         {value}
       </div>
     </div>
