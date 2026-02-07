@@ -1,0 +1,1 @@
+export { applyMotion } from "./applyMotion";

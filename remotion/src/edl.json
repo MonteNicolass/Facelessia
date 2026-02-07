@@ -1,0 +1,163 @@
+{
+  "version": "2.0",
+  "exportedAt": "2026-02-07T12:00:00.000Z",
+  "app": "Celeste",
+  "project": {
+    "title": "Los peligros ocultos del azucar",
+    "durationSec": 60,
+    "tone": "informativo",
+    "language": "es",
+    "aspectRatio": "9:16"
+  },
+  "script": {
+    "raw": "[0:00] Esto que te voy a contar sobre el azucar cambia todo lo que creias saber.\n\n[0:10] Para entender el azucar, primero hay que ir al origen de todo.\n\n[0:20] Lo que nadie te dice es que esto tiene una causa mucho mas profunda.\n\n[0:30] Y aca es donde la historia se pone realmente interesante.\n\n[0:40] Este dato es el que cambia toda la perspectiva.\n\n[0:50] Si esto te parecio interesante, segui para mas contenido como este.",
+    "scenes": [
+      {
+        "id": 1,
+        "startSec": 0,
+        "endSec": 10,
+        "narration": "Esto que te voy a contar sobre el azucar cambia todo lo que creias saber.",
+        "visualPrompt": "Dark cinematic wide shot, sugar cubes dramatic lighting, 4K",
+        "onScreenText": "LOS PELIGROS DEL AZUCAR"
+      },
+      {
+        "id": 2,
+        "startSec": 10,
+        "endSec": 20,
+        "narration": "Para entender el azucar, primero hay que ir al origen de todo.",
+        "visualPrompt": "Close-up sugarcane field, golden hour, dramatic side lighting",
+        "onScreenText": ""
+      },
+      {
+        "id": 3,
+        "startSec": 20,
+        "endSec": 30,
+        "narration": "Lo que nadie te dice es que esto tiene una causa mucho mas profunda.",
+        "visualPrompt": "Aerial view of industrial sugar factory, moody atmosphere",
+        "onScreenText": ""
+      },
+      {
+        "id": 4,
+        "startSec": 30,
+        "endSec": 40,
+        "narration": "Y aca es donde la historia se pone realmente interesante.",
+        "visualPrompt": "Abstract slow motion sugar dissolving in dark liquid",
+        "onScreenText": ""
+      },
+      {
+        "id": 5,
+        "startSec": 40,
+        "endSec": 50,
+        "narration": "Este dato es el que cambia toda la perspectiva.",
+        "visualPrompt": "Dramatic close-up of nutrition label, shallow depth of field",
+        "onScreenText": "EL DATO CLAVE"
+      },
+      {
+        "id": 6,
+        "startSec": 50,
+        "endSec": 60,
+        "narration": "Si esto te parecio interesante, segui para mas contenido como este.",
+        "visualPrompt": "Bright hopeful scene, fresh fruits, warm golden tones",
+        "onScreenText": ""
+      }
+    ]
+  },
+  "edl": [
+    {
+      "id": 1,
+      "startSec": 0,
+      "endSec": 10,
+      "motionId": "slow_zoom_in",
+      "motionLabel": "Slow Zoom In",
+      "motionType": "zoom",
+      "motionParams": { "from": 1, "to": 1.12, "easing": "easeInOut" },
+      "motionReason": "Apertura: captar atencion inmediata con acercamiento sutil",
+      "brollQuery": "cinematic dark atmospheric establishing shot",
+      "brollTimestamp": "0:03 - 0:06",
+      "brollReason": "Refuerza el hook visual con material impactante",
+      "sfx": { "efecto": "whoosh suave", "intensidad": "sutil" },
+      "transition": { "tipo": "crossfade", "duracion": 0.5 },
+      "notes": ""
+    },
+    {
+      "id": 2,
+      "startSec": 10,
+      "endSec": 20,
+      "motionId": "pan_right_soft",
+      "motionLabel": "Pan Right Soft",
+      "motionType": "pan",
+      "motionParams": { "from": 0, "to": 5, "unit": "%", "easing": "linear" },
+      "motionReason": "Continuidad narrativa, acompanar al flujo de lectura",
+      "brollQuery": "close up texture detail dramatic lighting 4K",
+      "brollTimestamp": "0:13 - 0:16",
+      "brollReason": "Complementa la narracion con imagen contextual",
+      "sfx": { "efecto": "impact bajo", "intensidad": "medio" },
+      "transition": { "tipo": "cut", "duracion": 0 },
+      "notes": ""
+    },
+    {
+      "id": 3,
+      "startSec": 20,
+      "endSec": 30,
+      "motionId": "pan_left_soft",
+      "motionLabel": "Pan Left Soft",
+      "motionType": "pan",
+      "motionParams": { "from": 0, "to": -5, "unit": "%", "easing": "linear" },
+      "motionReason": "Transicion narrativa, avance temporal, cambio de tema suave",
+      "brollQuery": "aerial drone shot landscape moody",
+      "brollTimestamp": "0:23 - 0:26",
+      "brollReason": "Complementa la narracion con imagen contextual",
+      "sfx": { "efecto": "riser tension", "intensidad": "medio" },
+      "transition": { "tipo": "crossfade", "duracion": 0.4 },
+      "notes": ""
+    },
+    {
+      "id": 4,
+      "startSec": 30,
+      "endSec": 40,
+      "motionId": "push_in_fast",
+      "motionLabel": "Push In Fast",
+      "motionType": "zoom",
+      "motionParams": { "from": 1, "to": 1.2, "easing": "easeIn" },
+      "motionReason": "Climax narrativo: maxima intensidad visual para reforzar el punto clave",
+      "brollQuery": "silhouette person dramatic backlight shadow",
+      "brollTimestamp": "0:33 - 0:36",
+      "brollReason": "Complementa la narracion con imagen contextual",
+      "sfx": { "efecto": "boom cinematografico", "intensidad": "fuerte" },
+      "transition": { "tipo": "whip", "duracion": 0.3 },
+      "notes": ""
+    },
+    {
+      "id": 5,
+      "startSec": 40,
+      "endSec": 50,
+      "motionId": "micro_shake",
+      "motionLabel": "Micro Shake",
+      "motionType": "shake",
+      "motionParams": { "intensity": 2, "frequency": 8, "decay": 0.9 },
+      "motionReason": "Impacto emocional fuerte, dato shockeante",
+      "brollQuery": "abstract slow motion particles dark",
+      "brollTimestamp": "0:43 - 0:46",
+      "brollReason": "Complementa la narracion con imagen contextual",
+      "sfx": { "efecto": "glitch digital", "intensidad": "medio" },
+      "transition": { "tipo": "cut", "duracion": 0 },
+      "notes": ""
+    },
+    {
+      "id": 6,
+      "startSec": 50,
+      "endSec": 60,
+      "motionId": "slow_zoom_out",
+      "motionLabel": "Slow Zoom Out",
+      "motionType": "zoom",
+      "motionParams": { "from": 1.12, "to": 1, "easing": "easeInOut" },
+      "motionReason": "Cierre: dar perspectiva y transicion natural al final",
+      "brollQuery": "nature macro water fire detail",
+      "brollTimestamp": "0:53 - 0:56",
+      "brollReason": "Complementa la narracion con imagen contextual",
+      "sfx": { "efecto": "ambiente oscuro", "intensidad": "sutil" },
+      "transition": { "tipo": "fade_out", "duracion": 1.0 },
+      "notes": ""
+    }
+  ]
+}
