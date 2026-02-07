@@ -27,27 +27,24 @@ export default function DirectorPage() {
     setTimeout(() => setToast(null), 2000);
   }
 
-  // Guard: verificar si Claude está conectado
   useEffect(() => {
     const connected = isAIConnected("claude");
     setClaudeConnected(connected);
   }, []);
 
-  // Cargar último análisis desde localStorage
   useEffect(() => {
     try {
       const saved = localStorage.getItem("director_last_analysis");
       if (saved) {
-        const { script: savedScript, decisions: savedDecisions } = JSON.parse(saved);
-        setScript(savedScript || "");
-        setDecisions(savedDecisions || []);
+        const parsed = JSON.parse(saved);
+        setScript(parsed?.script || "");
+        setDecisions(Array.isArray(parsed?.decisions) ? parsed.decisions : []);
       }
     } catch {}
   }, []);
 
-  // Analizar guion con Claude
   async function handleAnalyze() {
-    if (!script.trim()) {
+    if (!script?.trim()) {
       showToast("Pegá un guion primero");
       return;
     }
@@ -64,56 +61,55 @@ export default function DirectorPage() {
 
       if (!res.ok) {
         const err = await res.json();
-        throw new Error(err.error || "Error al analizar");
+        throw new Error(err?.error || "Error al analizar");
       }
 
       const data = await res.json();
-      setDecisions(data.decisions);
+      const newDecisions = Array.isArray(data?.decisions) ? data.decisions : [];
+      setDecisions(newDecisions);
 
-      // Guardar en localStorage
       localStorage.setItem(
         "director_last_analysis",
-        JSON.stringify({ script, decisions: data.decisions })
+        JSON.stringify({ script, decisions: newDecisions })
       );
 
       showToast("Análisis completado");
     } catch (err) {
-      showToast("Error: " + err.message);
+      showToast("Error: " + (err?.message || "Desconocido"));
     } finally {
       setLoading(false);
     }
   }
 
   function handleExportTXT() {
+    if (!Array.isArray(decisions) || decisions.length === 0) return;
+
     const lines = ["DIRECTOR IA — MAPA DE EDICIÓN", "=".repeat(50), ""];
     decisions.forEach((d, i) => {
-      lines.push(`${i + 1}. ${d.t}`);
-      lines.push(`   Motion: ${d.motion}`);
-      lines.push(`   B-roll: ${d.broll}`);
-      lines.push(`   Nota: ${d.note}`);
+      lines.push(`${i + 1}. ${d?.t || "—"}`);
+      lines.push(`   Motion: ${d?.motion || "—"}`);
+      lines.push(`   B-roll: ${d?.broll || "—"}`);
+      lines.push(`   Nota: ${d?.note || "—"}`);
       lines.push("");
     });
     downloadFile(lines.join("\n"), "mapa-edicion.txt", "text/plain");
     showToast("TXT exportado");
   }
 
-  // Exportar JSON
   function handleExportJSON() {
+    if (!Array.isArray(decisions) || decisions.length === 0) return;
+
     const json = JSON.stringify(decisions, null, 2);
     downloadFile(json, "decisiones-editorial.json", "application/json");
     showToast("JSON exportado");
   }
 
-  // Limpiar
   function handleClear() {
     setScript("");
     setDecisions([]);
     localStorage.removeItem("director_last_analysis");
   }
 
-  /* ══════ RENDER ══════ */
-
-  // Bloqueo si Claude no está conectado
   if (!claudeConnected) {
     return (
       <div style={{ maxWidth: 600, margin: "0 auto" }}>
@@ -170,6 +166,8 @@ export default function DirectorPage() {
     );
   }
 
+  const hasDecisions = Array.isArray(decisions) && decisions.length > 0;
+
   return (
     <div style={{ position: "relative" }}>
       <style>{`
@@ -179,7 +177,6 @@ export default function DirectorPage() {
         @keyframes spin { to { transform: rotate(360deg); } }
       `}</style>
 
-      {/* Toast */}
       {toast && (
         <div
           style={{
@@ -203,7 +200,7 @@ export default function DirectorPage() {
       )}
 
       <Topbar title="Director IA" badge="v1">
-        {decisions.length > 0 && (
+        {hasDecisions && (
           <>
             <Button variant="ghost" size="sm" onClick={handleExportTXT}>
               Export TXT
@@ -216,7 +213,6 @@ export default function DirectorPage() {
       </Topbar>
 
       <div className="dir-grid">
-        {/* ── LEFT: Input ── */}
         <Card style={{ display: "flex", flexDirection: "column", gap: "var(--sp-3)" }}>
           <Textarea
             label="Guion completo"
@@ -231,14 +227,14 @@ export default function DirectorPage() {
           <Button
             variant="primary"
             size="lg"
-            disabled={!script.trim() || loading}
+            disabled={!script?.trim() || loading}
             onClick={handleAnalyze}
             style={{ width: "100%" }}
           >
             {loading ? "Analizando..." : "Analizar guion"}
           </Button>
 
-          {decisions.length > 0 && (
+          {hasDecisions && (
             <Button variant="danger" size="sm" onClick={handleClear} style={{ width: "100%" }}>
               Limpiar
             </Button>
@@ -260,7 +256,6 @@ export default function DirectorPage() {
           </div>
         </Card>
 
-        {/* ── RIGHT: Decisiones editoriales ── */}
         <div style={{ display: "flex", flexDirection: "column", gap: "var(--sp-3)", minWidth: 0 }}>
           {loading && (
             <div
@@ -292,7 +287,7 @@ export default function DirectorPage() {
             </div>
           )}
 
-          {!loading && decisions.length === 0 && (
+          {!loading && !hasDecisions && (
             <EmptyState
               icon={
                 <svg
@@ -313,7 +308,7 @@ export default function DirectorPage() {
             />
           )}
 
-          {!loading && decisions.length > 0 && (
+          {!loading && hasDecisions && (
             <Card style={{ padding: 0, overflow: "hidden" }}>
               <div
                 style={{
@@ -340,12 +335,12 @@ export default function DirectorPage() {
                   <tbody>
                     {decisions.map((d, i) => (
                       <tr key={i} style={{ borderBottom: "1px solid var(--border-subtle)" }}>
-                        <td style={{ padding: "var(--sp-3)", fontFamily: "var(--font-mono)", fontWeight: 600, color: "var(--accent)" }}>{d.t}</td>
+                        <td style={{ padding: "var(--sp-3)", fontFamily: "var(--font-mono)", fontWeight: 600, color: "var(--accent)" }}>{d?.t || "—"}</td>
                         <td style={{ padding: "var(--sp-3)" }}>
-                          <Badge color="warning" style={{ fontSize: "10px" }}>{d.motion}</Badge>
+                          <Badge color="warning" style={{ fontSize: "10px" }}>{d?.motion || "—"}</Badge>
                         </td>
-                        <td style={{ padding: "var(--sp-3)", color: "var(--text-secondary)", maxWidth: 300 }}>{d.broll}</td>
-                        <td style={{ padding: "var(--sp-3)", color: "var(--muted)", fontSize: "11px", fontStyle: "italic" }}>{d.note}</td>
+                        <td style={{ padding: "var(--sp-3)", color: "var(--text-secondary)", maxWidth: 300 }}>{d?.broll || "—"}</td>
+                        <td style={{ padding: "var(--sp-3)", color: "var(--muted)", fontSize: "11px", fontStyle: "italic" }}>{d?.note || "—"}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -358,8 +353,6 @@ export default function DirectorPage() {
     </div>
   );
 }
-
-/* ── Helpers ── */
 
 function downloadFile(content, filename, type) {
   const blob = new Blob([content], { type });
