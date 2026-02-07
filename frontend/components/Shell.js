@@ -225,7 +225,7 @@ export default function Shell({ children }) {
               fontFamily: "var(--font-mono)",
               letterSpacing: "0.3px",
             }}>
-              v0.4
+              v0.5
             </span>
             <div style={{
               display: "flex",

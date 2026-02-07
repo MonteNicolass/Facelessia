@@ -7,8 +7,8 @@ import { usePathname } from "next/navigation";
 
 const NAV = [
   {
-    id: "overview",
-    label: "Overview",
+    id: "dashboard",
+    label: "Dashboard",
     href: "/",
     icon: (
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -23,26 +23,42 @@ const NAV = [
 
 const TOOLS = [
   {
-    id: "autovideos",
-    label: "AutoVideos",
-    desc: "Wizard de video",
-    href: "/autovideos",
+    id: "studio",
+    label: "Studio",
+    desc: "AI Video Generator",
+    href: "/studio",
     icon: (
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <polygon points="5 3 19 12 5 21 5 3" />
+        <path d="M7 2v11a3 3 0 0 0 6 0V5a1 1 0 0 1 2 0v8a5 5 0 0 1-10 0V2Z" />
+        <rect x="1" y="2" width="22" height="4" rx="1" />
+        <path d="m2 22 5-5" />
+        <path d="m22 22-5-5" />
+        <polygon points="12 17 8 22 16 22 12 17" />
       </svg>
     ),
   },
   {
     id: "director",
     label: "Director",
-    desc: "Mapa editorial",
+    desc: "Edit Map",
     href: "/director",
     isKey: true,
     icon: (
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <path d="M12 20h9" />
         <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
+      </svg>
+    ),
+  },
+  {
+    id: "library",
+    label: "Library",
+    desc: "Motion presets",
+    href: "/library",
+    icon: (
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20" />
+        <path d="m9 9.5 2 2 4-4" />
       </svg>
     ),
   },

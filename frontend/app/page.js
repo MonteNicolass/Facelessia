@@ -7,18 +7,18 @@ import Badge from "@/components/ui/Badge";
 import Button from "@/components/ui/Button";
 import { useStore } from "@/lib/store";
 
-export default function OverviewPage() {
-  const { state } = useStore();
-  const hasProject = state.project.title.length > 0;
-  const hasScenes = state.script.scenes.length > 0;
-  const hasEdl = state.edl.length > 0;
-
-  const [hoverWizard, setHoverWizard] = useState(false);
+export default function DashboardPage() {
+  const { state, dispatch } = useStore();
+  const [hoverStudio, setHoverStudio] = useState(false);
   const [hoverDirector, setHoverDirector] = useState(false);
+
+  const studioScenes = state.studio.output?.script?.length || 0;
+  const editMapSegments = state.editMap.segments.length;
+  const hasQuickStatus = state.studio.output || editMapSegments > 0;
 
   return (
     <div style={{ maxWidth: "720px" }}>
-      {/* Hero */}
+      {/* Header */}
       <div className="reveal" style={{ marginBottom: "var(--sp-8)" }}>
         <div
           style={{
@@ -31,7 +31,7 @@ export default function OverviewPage() {
             marginBottom: "var(--sp-3)",
           }}
         >
-          pipeline de video faceless
+          Pipeline de video faceless
         </div>
         <h1
           style={{
@@ -40,22 +40,11 @@ export default function OverviewPage() {
             fontSize: "30px",
             lineHeight: 1.2,
             color: "var(--text)",
-            margin: "0 0 var(--sp-2)",
-          }}
-        >
-          Editorial Film Lab
-        </h1>
-        <p
-          style={{
-            fontSize: "14px",
-            lineHeight: 1.6,
-            color: "var(--muted)",
             margin: 0,
-            fontFamily: "var(--font-body)",
           }}
         >
-          De una idea a un video casi listo
-        </p>
+          Celeste
+        </h1>
       </div>
 
       {/* Tool cards */}
@@ -67,22 +56,22 @@ export default function OverviewPage() {
           marginBottom: "var(--sp-6)",
         }}
       >
-        {/* AutoVideos card */}
-        <Link href="/autovideos" style={{ textDecoration: "none" }} className="reveal-d1">
+        {/* Studio card */}
+        <Link href="/studio" style={{ textDecoration: "none" }} className="reveal-d1">
           <Card
             style={{
               cursor: "pointer",
               height: "100%",
               transition: "border-color var(--transition-base), box-shadow var(--transition-base)",
-              borderTop: hoverWizard
+              borderTop: hoverStudio
                 ? "1px solid var(--accent-border)"
                 : "1px solid var(--border)",
-              boxShadow: hoverWizard
+              boxShadow: hoverStudio
                 ? "0 -1px 0 0 var(--accent-border)"
                 : "none",
             }}
-            onMouseEnter={() => setHoverWizard(true)}
-            onMouseLeave={() => setHoverWizard(false)}
+            onMouseEnter={() => setHoverStudio(true)}
+            onMouseLeave={() => setHoverStudio(false)}
           >
             <div
               style={{
@@ -92,7 +81,7 @@ export default function OverviewPage() {
                 marginBottom: "var(--sp-2)",
               }}
             >
-              <Badge color="var(--accent)">WIZARD</Badge>
+              <Badge color="var(--accent)">AI VIDEO</Badge>
             </div>
             <div
               style={{
@@ -103,7 +92,7 @@ export default function OverviewPage() {
                 marginBottom: "var(--sp-2)",
               }}
             >
-              AutoVideos
+              Studio
             </div>
             <p
               style={{
@@ -114,7 +103,7 @@ export default function OverviewPage() {
                 fontFamily: "var(--font-body)",
               }}
             >
-              Flujo guiado: tema, guion mock, assets y output. Todo automatizado.
+              Genera guiones, prompts y assets desde un tema. Flujo completo automatizado.
             </p>
             <span
               style={{
@@ -125,7 +114,7 @@ export default function OverviewPage() {
                 transition: "color var(--transition-fast)",
               }}
             >
-              Abrir wizard &rarr;
+              Abrir studio &rarr;
             </span>
           </Card>
         </Link>
@@ -134,7 +123,7 @@ export default function OverviewPage() {
         <Link href="/director" style={{ textDecoration: "none" }} className="reveal-d2">
           <Card
             highlight
-            color="var(--accent)"
+            color="var(--pink)"
             style={{
               cursor: "pointer",
               height: "100%",
@@ -157,7 +146,7 @@ export default function OverviewPage() {
                 marginBottom: "var(--sp-2)",
               }}
             >
-              <Badge color="var(--pink)">PRO</Badge>
+              <Badge color="var(--pink)">EDIT MAP</Badge>
             </div>
             <div
               style={{
@@ -179,7 +168,7 @@ export default function OverviewPage() {
                 fontFamily: "var(--font-body)",
               }}
             >
-              Importa guion, detecta escenas, genera EDL con motions y b-roll. Exporta todo.
+              Importa guion, segmenta escenas, asigna motions, b-roll y SFX. Exporta el edit map.
             </p>
             <span
               style={{
@@ -196,9 +185,9 @@ export default function OverviewPage() {
         </Link>
       </div>
 
-      {/* Project state */}
-      {hasProject && (
-        <Card className="reveal-d3" style={{ marginBottom: "var(--sp-4)" }}>
+      {/* Quick status */}
+      {hasQuickStatus && (
+        <Card className="reveal-d2" style={{ marginBottom: "var(--sp-6)" }}>
           <div
             style={{
               fontSize: "10px",
@@ -207,55 +196,123 @@ export default function OverviewPage() {
               color: "var(--dim)",
               textTransform: "uppercase",
               letterSpacing: "0.8px",
-              marginBottom: "var(--sp-4)",
+              marginBottom: "var(--sp-3)",
             }}
           >
-            Proyecto actual
+            Estado actual
           </div>
           <div
             style={{
               display: "flex",
-              gap: "var(--sp-5)",
+              gap: "var(--sp-6)",
               flexWrap: "wrap",
-              marginBottom: "var(--sp-5)",
             }}
           >
-            <Chip label="Titulo" value={state.project.title} />
-            <Chip label="Duracion" value={`${state.project.durationSec}s`} />
-            {hasScenes && <Chip label="Escenas" value={state.script.scenes.length} />}
-            {hasEdl && <Chip label="EDL" value={`${state.edl.length} entries`} />}
-          </div>
-          <div
-            style={{
-              display: "flex",
-              gap: "var(--sp-2)",
-              borderTop: "1px solid var(--border-subtle)",
-              paddingTop: "var(--sp-4)",
-            }}
-          >
-            {hasScenes && !hasEdl && (
-              <Link href="/director" style={{ textDecoration: "none" }}>
-                <Button size="sm">Continuar en Director &rarr;</Button>
-              </Link>
+            {state.studio.output && (
+              <Stat label="Studio scenes" value={studioScenes} />
             )}
-            {hasEdl && (
-              <Link href="/director" style={{ textDecoration: "none" }}>
-                <Button size="sm" variant="secondary">Ver EDL &rarr;</Button>
-              </Link>
-            )}
-            {!hasScenes && (
-              <Link href="/autovideos" style={{ textDecoration: "none" }}>
-                <Button size="sm">Empezar &rarr;</Button>
-              </Link>
+            {editMapSegments > 0 && (
+              <Stat label="Edit Map segments" value={editMapSegments} />
             )}
           </div>
         </Card>
       )}
+
+      {/* Recent Projects */}
+      <div className="reveal-d3">
+        {state.projects.length > 0 ? (
+          <>
+            <SectionLabel>Proyectos recientes</SectionLabel>
+            <div style={{ display: "flex", flexDirection: "column", gap: "var(--sp-2)" }}>
+              {state.projects.map((project) => (
+                <Card key={project.id} style={{ padding: "var(--sp-3) var(--sp-4)" }}>
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      gap: "var(--sp-3)",
+                    }}
+                  >
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "var(--sp-3)",
+                        minWidth: 0,
+                        flex: 1,
+                      }}
+                    >
+                      <div style={{ minWidth: 0, flex: 1 }}>
+                        <div
+                          style={{
+                            fontSize: "13px",
+                            fontFamily: "var(--font-body)",
+                            fontWeight: 500,
+                            color: "var(--text)",
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
+                            whiteSpace: "nowrap",
+                          }}
+                        >
+                          {project.name}
+                        </div>
+                        <div
+                          style={{
+                            fontSize: "11px",
+                            fontFamily: "var(--font-body)",
+                            color: "var(--dim)",
+                            marginTop: "2px",
+                          }}
+                        >
+                          {new Date(project.createdAt).toLocaleDateString("es-ES", {
+                            day: "numeric",
+                            month: "short",
+                            year: "numeric",
+                          })}
+                        </div>
+                      </div>
+                      <Badge
+                        color={project.type === "studio" ? "var(--accent)" : "var(--pink)"}
+                      >
+                        {project.type === "studio" ? "Studio" : "Director"}
+                      </Badge>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() =>
+                        dispatch({ type: "DELETE_PROJECT", payload: project.id })
+                      }
+                      style={{ color: "var(--muted)", flexShrink: 0 }}
+                    >
+                      Eliminar
+                    </Button>
+                  </div>
+                </Card>
+              ))}
+            </div>
+          </>
+        ) : (
+          <p
+            style={{
+              fontSize: "13px",
+              fontFamily: "var(--font-body)",
+              color: "var(--dim)",
+              margin: 0,
+            }}
+          >
+            Sin proyectos guardados todavia.
+          </p>
+        )}
+      </div>
     </div>
   );
 }
 
-function Chip({ label, value }) {
+/* -- Local helper components -- */
+
+function Stat({ label, value }) {
   return (
     <div style={{ minWidth: 0 }}>
       <div
@@ -273,18 +330,32 @@ function Chip({ label, value }) {
       </div>
       <div
         style={{
-          fontSize: "13px",
+          fontSize: "15px",
           fontFamily: "var(--font-body)",
           color: "var(--text-secondary)",
           fontWeight: 500,
-          maxWidth: "180px",
-          overflow: "hidden",
-          textOverflow: "ellipsis",
-          whiteSpace: "nowrap",
         }}
       >
         {value}
       </div>
+    </div>
+  );
+}
+
+function SectionLabel({ children }) {
+  return (
+    <div
+      style={{
+        fontSize: "10px",
+        fontWeight: 600,
+        fontFamily: "var(--font-body)",
+        color: "var(--dim)",
+        textTransform: "uppercase",
+        letterSpacing: "1px",
+        marginBottom: "var(--sp-3)",
+      }}
+    >
+      {children}
     </div>
   );
 }

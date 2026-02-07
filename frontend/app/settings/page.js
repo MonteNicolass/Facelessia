@@ -15,6 +15,12 @@ const API_FIELDS = [
   { key: "anthropicApiKey", label: "ANTHROPIC_API_KEY", placeholder: "sk-ant-...", help: "Para generar EDL con Claude. Opcional." },
 ];
 
+const SYSTEM_STATUS = [
+  { label: "Backend", value: "No conectado", color: "var(--danger)" },
+  { label: "IA", value: "Mock (sin API)", color: "var(--warning)" },
+  { label: "Storage", value: "localStorage", color: "var(--success)" },
+];
+
 export default function SettingsPage() {
   const { state, dispatch } = useStore();
   const fileRef = useRef(null);
@@ -153,8 +159,55 @@ export default function SettingsPage() {
           </div>
         </Card>
 
-        {/* ── Import / Export ── */}
+        {/* ── Estado del sistema ── */}
         <Card className="reveal-d2">
+          <SectionLabel>Estado del sistema</SectionLabel>
+          <div style={{
+            display: "flex",
+            flexDirection: "column",
+            gap: "var(--sp-3)",
+            marginTop: "var(--sp-4)",
+          }}>
+            {SYSTEM_STATUS.map((item) => (
+              <div
+                key={item.label}
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "var(--sp-2)",
+                }}
+              >
+                <span style={{
+                  display: "inline-block",
+                  width: "7px",
+                  height: "7px",
+                  borderRadius: "var(--radius-full)",
+                  background: item.color,
+                  flexShrink: 0,
+                }} />
+                <span style={{
+                  fontFamily: "var(--font-body)",
+                  fontSize: "12px",
+                  fontWeight: 600,
+                  color: "var(--text)",
+                  minWidth: "64px",
+                }}>
+                  {item.label}
+                </span>
+                <span style={{
+                  fontFamily: "var(--font-mono)",
+                  fontSize: "11px",
+                  color: "var(--text-secondary)",
+                }}>
+                  {item.value}
+                </span>
+              </div>
+            ))}
+          </div>
+        </Card>
+
+        {/* ── Import / Export ── */}
+        <Card className="reveal-d3">
           <SectionLabel>Import / Export proyecto</SectionLabel>
           <p style={{
             fontFamily: "var(--font-body)",
@@ -190,7 +243,7 @@ export default function SettingsPage() {
         </Card>
 
         {/* ── Almacenamiento ── */}
-        <Card className="reveal-d3">
+        <Card className="reveal-d4">
           <SectionLabel>Almacenamiento local</SectionLabel>
           <p style={{
             fontFamily: "var(--font-body)",
@@ -232,7 +285,7 @@ export default function SettingsPage() {
         </Card>
 
         {/* ── Proyecto actual ── */}
-        <Card className="reveal-d4">
+        <Card className="reveal-d5">
           <SectionLabel>Proyecto actual</SectionLabel>
           <div style={{
             display: "grid",
@@ -250,7 +303,7 @@ export default function SettingsPage() {
         </Card>
 
         {/* ── About ── */}
-        <Card className="reveal-d5">
+        <Card className="reveal-d6">
           <div style={{
             fontFamily: "var(--font-display)",
             fontWeight: 400,
@@ -272,7 +325,7 @@ export default function SettingsPage() {
             Video faceless pipeline — de una idea a un video casi listo.
             <br />
             <span style={{ fontSize: "10px", letterSpacing: "0.3px" }}>
-              Frontend v0.3 &middot; Sin backend activo &middot; Datos 100% locales
+              Frontend v0.5 &middot; Sin backend activo &middot; Datos 100% locales
             </span>
           </div>
         </Card>
