@@ -20,7 +20,6 @@ export default function AutoVideosPage() {
   function StepConfig() {
     return (
       <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
-        {/* Tema */}
         <div>
           <Label>Tema del video</Label>
           <textarea
@@ -32,7 +31,6 @@ export default function AutoVideosPage() {
           />
         </div>
 
-        {/* Duracion */}
         <div>
           <Label>Duracion (segundos)</Label>
           <div style={{ display: "flex", gap: "6px" }}>
@@ -60,7 +58,6 @@ export default function AutoVideosPage() {
           </div>
         </div>
 
-        {/* Tono */}
         <div>
           <Label>Tono</Label>
           <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
@@ -123,7 +120,6 @@ export default function AutoVideosPage() {
           style={{ ...inputStyle, minHeight: "200px" }}
         />
 
-        {/* Lista de escenas */}
         {state.script.scenes.length > 0 && (
           <div>
             <Label>Escenas detectadas</Label>
@@ -165,7 +161,6 @@ export default function AutoVideosPage() {
   function StepOutput() {
     return (
       <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-        {/* Resumen */}
         <Card>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: "10px" }}>
             {[
@@ -186,7 +181,6 @@ export default function AutoVideosPage() {
           </div>
         </Card>
 
-        {/* Escenas con prompts */}
         <Label>Escenas + prompts visuales</Label>
         <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
           {state.script.scenes.map((s) => {
@@ -195,7 +189,7 @@ export default function AutoVideosPage() {
               <Card key={s.id}>
                 <div style={{ display: "flex", gap: "10px", marginBottom: "6px" }}>
                   <Badge color="#8b5cf6">{formatTime(s.startSec)}-{formatTime(s.endSec)}</Badge>
-                  {edlEntry && <Badge color="#f59e0b">{edlEntry.motion}</Badge>}
+                  {edlEntry && <Badge color="#f59e0b">{edlEntry.motionLabel}</Badge>}
                 </div>
                 <div style={{ fontSize: "11px", color: "#888", marginBottom: "6px" }}>{s.narration}</div>
                 {s.visualPrompt && (
@@ -208,7 +202,6 @@ export default function AutoVideosPage() {
           })}
         </div>
 
-        {/* Exports */}
         <div style={{ display: "flex", gap: "8px" }}>
           <Button variant="secondary" onClick={() => setStep(2)}>&larr; Anterior</Button>
           <Button onClick={() => exportJSON(state.project, state.script, state.edl)}>
@@ -231,16 +224,12 @@ export default function AutoVideosPage() {
     );
   }
 
-  // === Render ===
   return (
     <div style={{ padding: "40px 48px", maxWidth: "760px" }}>
-      {/* Header */}
       <div style={{ marginBottom: "32px" }}>
         <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "8px" }}>
           <Badge color="#8b5cf6">AUTOVIDEOS</Badge>
-          <span style={{ fontSize: "11px", color: "#333" }}>
-            Paso {step} de 3
-          </span>
+          <span style={{ fontSize: "11px", color: "#333" }}>Paso {step} de 3</span>
         </div>
         <h1 style={{ fontSize: "22px", fontWeight: 800, color: "#e5e5e5", margin: 0, letterSpacing: "-0.5px" }}>
           {step === 1 && "Configurar proyecto"}
@@ -254,7 +243,6 @@ export default function AutoVideosPage() {
         </p>
       </div>
 
-      {/* Steps */}
       <div style={{ display: "flex", gap: "4px", marginBottom: "24px" }}>
         {[1, 2, 3].map((s) => (
           <div
@@ -277,20 +265,17 @@ export default function AutoVideosPage() {
   );
 }
 
-// Helpers
 function Label({ children }) {
   return (
-    <label
-      style={{
-        fontSize: "10px",
-        fontWeight: 700,
-        color: "#555",
-        letterSpacing: "0.5px",
-        textTransform: "uppercase",
-        marginBottom: "6px",
-        display: "block",
-      }}
-    >
+    <label style={{
+      fontSize: "10px",
+      fontWeight: 700,
+      color: "#555",
+      letterSpacing: "0.5px",
+      textTransform: "uppercase",
+      marginBottom: "6px",
+      display: "block",
+    }}>
       {children}
     </label>
   );

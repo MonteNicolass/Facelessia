@@ -1,7 +1,81 @@
 /**
  * Parser de guiones — detecta timestamps o divide por párrafos.
- * Soporta: [0:12], (0:12), 0:12 -, 0:12:, 00:01:05
+ * Soporta: [0:12], (0:12), 0:12 -, 0:12:, 00:01:05, 00:12-00:18 (rango)
+ *
+ * Contract: celeste_scriptpack_v1
+ * ScriptPack JSON shape:
+ * {
+ *   _format: "celeste_scriptpack_v1",
+ *   title: string,
+ *   durationSec: number,
+ *   tone: string,
+ *   scenes: [{ id, startSec, endSec, narration, visualPrompt?, onScreenText? }]
+ * }
  */
+
+// --- Contract: celeste_scriptpack_v1 ---
+
+export const SCRIPTPACK_FORMAT = "celeste_scriptpack_v1";
+
+/**
+ * Valida un objeto contra el contrato celeste_scriptpack_v1.
+ * Retorna { valid: boolean, data?: object, error?: string }
+ */
+export function validateScriptPack(obj) {
+  if (!obj || typeof obj !== "object") {
+    return { valid: false, error: "No es un objeto válido" };
+  }
+  if (obj._format !== SCRIPTPACK_FORMAT) {
+    return { valid: false, error: `Formato no reconocido: esperado "${SCRIPTPACK_FORMAT}", recibido "${obj._format || "ninguno"}"` };
+  }
+  if (!Array.isArray(obj.scenes) || obj.scenes.length === 0) {
+    return { valid: false, error: "El ScriptPack no tiene escenas" };
+  }
+  for (let i = 0; i < obj.scenes.length; i++) {
+    const s = obj.scenes[i];
+    if (typeof s.startSec !== "number" || typeof s.endSec !== "number" || typeof s.narration !== "string") {
+      return { valid: false, error: `Escena ${i + 1}: faltan campos requeridos (startSec, endSec, narration)` };
+    }
+  }
+  return {
+    valid: true,
+    data: {
+      title: obj.title || "",
+      durationSec: obj.durationSec || obj.scenes[obj.scenes.length - 1].endSec,
+      tone: obj.tone || "informativo",
+      scenes: obj.scenes.map((s, i) => ({
+        id: s.id || i + 1,
+        startSec: s.startSec,
+        endSec: s.endSec,
+        narration: s.narration,
+        visualPrompt: s.visualPrompt || "",
+        onScreenText: s.onScreenText || "",
+      })),
+    },
+  };
+}
+
+/**
+ * Crea un ScriptPack JSON exportable desde state.
+ */
+export function buildScriptPack(project, scenes) {
+  return {
+    _format: SCRIPTPACK_FORMAT,
+    title: project.title,
+    durationSec: project.durationSec,
+    tone: project.tone,
+    scenes: scenes.map((s) => ({
+      id: s.id,
+      startSec: s.startSec,
+      endSec: s.endSec,
+      narration: s.narration,
+      visualPrompt: s.visualPrompt || "",
+      onScreenText: s.onScreenText || "",
+    })),
+  };
+}
+
+// --- Utilidades de tiempo ---
 
 export function timeToSeconds(ts) {
   const clean = ts.replace(/[\[\]()]/g, "").trim();
@@ -18,12 +92,36 @@ export function formatTime(totalSec) {
 }
 
 function estimateDuration(text) {
-  // ~2.5 palabras/seg narración español
   const words = text.split(/\s+/).filter(Boolean).length;
   return Math.max(3, Math.round(words / 2.5));
 }
 
+// --- Detección de timestamps ---
+
 function tryParseTimestamped(text) {
+  // Patrón rango: 00:12-00:18 texto
+  const rangePattern = /^(\d{1,2}:\d{2}(?::\d{2})?)\s*[-–—]\s*(\d{1,2}:\d{2}(?::\d{2})?)\s+(.+)/gm;
+  const rangeMatches = [];
+  let rm;
+  while ((rm = rangePattern.exec(text)) !== null) {
+    rangeMatches.push({
+      startTs: rm[1],
+      endTs: rm[2],
+      narration: rm[3].trim(),
+    });
+  }
+  if (rangeMatches.length >= 2) {
+    return rangeMatches.map((m, i) => ({
+      id: i + 1,
+      startSec: timeToSeconds(m.startTs),
+      endSec: timeToSeconds(m.endTs),
+      narration: m.narration,
+      visualPrompt: "",
+      onScreenText: "",
+    }));
+  }
+
+  // Patrones de timestamp simple
   const patterns = [
     /\[(\d{1,2}:\d{2}(?:\.\d+)?)\]\s*/g,
     /\((\d{1,2}:\d{2}(?:\.\d+)?)\)\s*/g,
@@ -108,7 +206,6 @@ function parseByParagraphs(text, targetDuration) {
     cursor += dur;
   }
 
-  // Normalizar al target
   if (scenes.length > 0) {
     const factor = targetDuration / cursor;
     let acc = 0;
@@ -126,10 +223,22 @@ function parseByParagraphs(text, targetDuration) {
 
 /**
  * Parser principal.
- * Si detecta timestamps, los usa. Si no, divide por párrafos.
+ * Intenta: 1) ScriptPack JSON, 2) timestamps, 3) párrafos.
  */
 export function parseScript(text, targetDurationSec = 60) {
   if (!text || !text.trim()) return [];
+
+  // Intentar parsear como JSON (podría ser un ScriptPack pegado)
+  const trimmed = text.trim();
+  if (trimmed.startsWith("{")) {
+    try {
+      const obj = JSON.parse(trimmed);
+      const result = validateScriptPack(obj);
+      if (result.valid) return result.data.scenes;
+    } catch {
+      // No es JSON válido, seguir con parsing de texto
+    }
+  }
 
   const timestamped = tryParseTimestamped(text);
   if (timestamped && timestamped.length >= 2) return timestamped;

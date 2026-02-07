@@ -1,15 +1,9 @@
 import { formatTime } from "./parser";
+import motionsCatalog from "@/src/data/motions.catalog.json";
 
 // === Pools de datos para EDL ===
 
-const MOTIONS = [
-  { tipo: "zoom_in", razon: "Acercar para crear tensión e intimidad" },
-  { tipo: "pan_right", razon: "Paneo acompaña el avance narrativo" },
-  { tipo: "push_in", razon: "Empuje sutil hacia el sujeto, refuerza importancia" },
-  { tipo: "zoom_out", razon: "Alejar para dar contexto y perspectiva" },
-  { tipo: "pan_left", razon: "Paneo horizontal para transición visual" },
-  { tipo: "ken_burns_up", razon: "Movimiento ascendente para elevar el tono" },
-];
+const MOTIONS = motionsCatalog.motions;
 
 const BROLL_QUERIES = [
   "cinematic dark atmospheric establishing shot",
@@ -22,14 +16,16 @@ const BROLL_QUERIES = [
   "modern city night lights cinematic",
   "nature macro water fire detail",
   "technology screen glow dark room",
+  "epic landscape mountains fog dramatic",
+  "urban architecture geometric patterns shadow",
 ];
 
 const SFX_POOL = [
   { efecto: "whoosh suave", intensidad: "sutil" },
   { efecto: "impact bajo", intensidad: "medio" },
-  { efecto: "riser tensión", intensidad: "medio" },
-  { efecto: "transición swoosh", intensidad: "sutil" },
-  { efecto: "boom cinematográfico", intensidad: "fuerte" },
+  { efecto: "riser tension", intensidad: "medio" },
+  { efecto: "transicion swoosh", intensidad: "sutil" },
+  { efecto: "boom cinematografico", intensidad: "fuerte" },
   { efecto: "ambiente oscuro", intensidad: "sutil" },
   { efecto: "glitch digital", intensidad: "medio" },
   { efecto: "reverse cymbal", intensidad: "medio" },
@@ -45,44 +41,76 @@ const TRANSITIONS = [
 ];
 
 /**
+ * Asigna motions del catálogo evitando repetición consecutiva.
+ * Lógica: hook → slow_zoom_in, climax → push_in_fast/micro_shake, cierre → slow_zoom_out.
+ */
+function pickMotion(index, total, prevMotionId) {
+  const isFirst = index === 0;
+  const isLast = index === total - 1;
+  const climaxIdx = Math.floor(total * 0.7);
+  const isClimax = index === climaxIdx;
+
+  // Escenas fijas
+  if (isFirst) return MOTIONS.find((m) => m.id === "slow_zoom_in") || MOTIONS[0];
+  if (isLast) return MOTIONS.find((m) => m.id === "slow_zoom_out") || MOTIONS[1];
+  if (isClimax) return MOTIONS.find((m) => m.id === "push_in_fast") || MOTIONS.find((m) => m.id === "micro_shake") || MOTIONS[4];
+
+  // Rotar evitando repetición
+  const available = MOTIONS.filter((m) => m.id !== prevMotionId && m.id !== "hold_static");
+  return available[index % available.length];
+}
+
+/**
+ * Genera razón editorial coherente según posición y motion.
+ */
+function buildReason(motion, index, total) {
+  const isFirst = index === 0;
+  const isLast = index === total - 1;
+  const climaxIdx = Math.floor(total * 0.7);
+
+  if (isFirst) return "Apertura: captar atención inmediata con acercamiento sutil";
+  if (isLast) return "Cierre: dar perspectiva y transición natural al final";
+  if (index === climaxIdx) return "Clímax narrativo: máxima intensidad visual para reforzar el punto clave";
+  return motion.useWhen;
+}
+
+/**
  * Genera un EDL mock coherente a partir de escenas parseadas.
- * Alterna motions, asigna b-roll, SFX y transiciones con razones.
+ * Usa el catálogo de motions, evita repetición, genera razones editoriales.
  */
 export function generateMockEDL(scenes) {
   if (!scenes || scenes.length === 0) return [];
 
-  const climaxIdx = Math.floor(scenes.length * 0.7);
+  let prevMotionId = null;
 
   return scenes.map((scene, i) => {
-    const isFirst = i === 0;
     const isLast = i === scenes.length - 1;
-    const isClimax = i === climaxIdx;
-
-    const motion = MOTIONS[i % MOTIONS.length];
-    const motionTo = parseFloat((1.0 + 0.08 + (i % 3) * 0.04).toFixed(2));
+    const motion = pickMotion(i, scenes.length, prevMotionId);
+    prevMotionId = motion.id;
 
     const sceneDur = scene.endSec - scene.startSec;
     const brollStart = scene.startSec + Math.floor(sceneDur * 0.3);
     const brollEnd = brollStart + Math.min(3, Math.floor(sceneDur * 0.4));
 
+    const climaxIdx = Math.floor(scenes.length * 0.7);
+    const isClimax = i === climaxIdx;
+
     return {
       id: scene.id,
       startSec: scene.startSec,
       endSec: scene.endSec,
-      motion: isClimax ? "shake" : motion.tipo,
-      motionSpeed: isFirst || isLast ? "lento" : ["lento", "medio", "medio", "rapido"][i % 4],
-      motionFrom: 1.0,
-      motionTo: isClimax ? 1.2 : motionTo,
-      motionReason: isClimax
-        ? "Momento de mayor intensidad — shake para impacto emocional"
-        : motion.razon,
+      motionId: motion.id,
+      motionLabel: motion.label,
+      motionType: motion.type,
+      motionParams: { ...motion.paramsDefaults },
+      motionReason: buildReason(motion, i, scenes.length),
       brollTimestamp: `${formatTime(brollStart)} - ${formatTime(brollEnd)}`,
       brollQuery: BROLL_QUERIES[i % BROLL_QUERIES.length],
-      brollReason: isFirst
+      brollReason: i === 0
         ? "Refuerza el hook visual con material impactante"
         : "Complementa la narración con imagen contextual",
       sfx: isClimax
-        ? { efecto: "boom cinematográfico", intensidad: "fuerte" }
+        ? { efecto: "boom cinematografico", intensidad: "fuerte" }
         : SFX_POOL[i % SFX_POOL.length],
       transition: isLast
         ? { tipo: "fade_out", duracion: 1.0 }

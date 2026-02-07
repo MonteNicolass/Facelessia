@@ -24,7 +24,7 @@ function downloadBlob(blob, filename) {
  */
 export function exportJSON(project, script, edl) {
   const data = {
-    version: "1.0",
+    version: "2.0",
     exportedAt: new Date().toISOString(),
     app: "Celeste",
     project,
@@ -42,6 +42,21 @@ export function exportJSON(project, script, edl) {
 }
 
 /**
+ * Importa un proyecto JSON. Retorna el data o null si inválido.
+ */
+export function importProjectJSON(jsonString) {
+  try {
+    const data = JSON.parse(jsonString);
+    if (data.app === "Celeste" && data.project) {
+      return data;
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Exporta el reporte de edición como TXT.
  */
 export function exportTXT(project, script, edl) {
@@ -53,7 +68,7 @@ export function exportTXT(project, script, edl) {
   lines.push("CELESTE — REPORTE DE EDICION");
   lines.push(hr);
   lines.push("");
-  lines.push(`Proyecto: ${project.title || "(sin título)"}`);
+  lines.push(`Proyecto: ${project.title || "(sin titulo)"}`);
   lines.push(`Duracion: ${project.durationSec}s`);
   lines.push(`Tono: ${project.tone}`);
   lines.push(`Exportado: ${new Date().toLocaleString("es-AR")}`);
@@ -86,9 +101,10 @@ export function exportTXT(project, script, edl) {
       lines.push(
         `--- ESCENA ${e.id} [${formatTime(e.startSec)} - ${formatTime(e.endSec)}] ---`
       );
-      lines.push(
-        `  MOTION: ${e.motion} (${e.motionSpeed}) ${e.motionFrom}x > ${e.motionTo}x`
-      );
+      const motionName = e.motionLabel || e.motionId || "unknown";
+      const params = e.motionParams || {};
+      const paramStr = params.from !== undefined ? ` ${params.from}x > ${params.to}x` : "";
+      lines.push(`  MOTION: ${motionName}${paramStr}`);
       lines.push(`    Razon: ${e.motionReason}`);
       lines.push(`  B-ROLL [${e.brollTimestamp}]: "${e.brollQuery}"`);
       lines.push(`    Razon: ${e.brollReason}`);
@@ -98,6 +114,9 @@ export function exportTXT(project, script, edl) {
       lines.push(
         `  TRANSICION: ${e.transition.tipo} (${e.transition.duracion}s)`
       );
+      if (e.notes) {
+        lines.push(`  NOTAS: ${e.notes}`);
+      }
     }
 
     // Shopping lists
@@ -110,8 +129,16 @@ export function exportTXT(project, script, edl) {
 
     lines.push("");
     lines.push("SFX NECESARIOS:");
-    edl.forEach((e, i) => {
-      lines.push(`  ${i + 1}. ${e.sfx.efecto} (${e.sfx.intensidad})`);
+    const uniqueSfx = [...new Set(edl.map((e) => `${e.sfx.efecto} (${e.sfx.intensidad})`))];
+    uniqueSfx.forEach((s, i) => {
+      lines.push(`  ${i + 1}. ${s}`);
+    });
+
+    lines.push("");
+    lines.push("MOTIONS USADOS:");
+    const uniqueMotions = [...new Set(edl.map((e) => e.motionLabel || e.motionId))];
+    uniqueMotions.forEach((m, i) => {
+      lines.push(`  ${i + 1}. ${m}`);
     });
   }
 

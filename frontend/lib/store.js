@@ -3,7 +3,7 @@
 import { createContext, useContext, useReducer, useEffect } from "react";
 
 const STORAGE_KEY = "celeste-store";
-const STORAGE_VERSION = 2;
+const STORAGE_VERSION = 3;
 
 export const initialState = {
   project: {
@@ -18,6 +18,12 @@ export const initialState = {
     scenes: [],
   },
   edl: [],
+  settings: {
+    mvpapiBaseUrl: "",
+    mvpapiApiKey: "",
+    openaiApiKey: "",
+    anthropicApiKey: "",
+  },
 };
 
 function reducer(state, action) {
@@ -32,13 +38,46 @@ function reducer(state, action) {
       return { ...state, script: action.payload };
     case "SET_EDL":
       return { ...state, edl: action.payload };
+    case "SET_SETTINGS":
+      return { ...state, settings: { ...state.settings, ...action.payload } };
+    case "IMPORT_SCRIPTPACK": {
+      const pack = action.payload;
+      return {
+        ...state,
+        project: {
+          ...state.project,
+          title: pack.title || state.project.title,
+          durationSec: pack.durationSec || state.project.durationSec,
+          tone: pack.tone || state.project.tone,
+        },
+        script: {
+          raw: pack.scenes.map((s) => `[${fmtSec(s.startSec)}] ${s.narration}`).join("\n\n"),
+          scenes: pack.scenes,
+        },
+      };
+    }
+    case "IMPORT_FULL_PROJECT": {
+      const data = action.payload;
+      return {
+        ...state,
+        project: data.project || state.project,
+        script: data.script || state.script,
+        edl: data.edl || state.edl,
+      };
+    }
     case "HYDRATE":
       return { ...initialState, ...action.payload };
     case "RESET":
-      return { ...initialState };
+      return { ...initialState, settings: state.settings };
     default:
       return state;
   }
+}
+
+function fmtSec(totalSec) {
+  const m = Math.floor(totalSec / 60);
+  const s = Math.floor(totalSec % 60);
+  return `${m}:${s.toString().padStart(2, "0")}`;
 }
 
 const StoreContext = createContext(null);
@@ -46,7 +85,6 @@ const StoreContext = createContext(null);
 export function StoreProvider({ children }) {
   const [state, dispatch] = useReducer(reducer, initialState);
 
-  // Restaurar de localStorage al montar
   useEffect(() => {
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
@@ -61,7 +99,6 @@ export function StoreProvider({ children }) {
     }
   }, []);
 
-  // Persistir a localStorage en cada cambio
   useEffect(() => {
     try {
       localStorage.setItem(

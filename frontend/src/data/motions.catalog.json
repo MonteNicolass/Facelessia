@@ -1,0 +1,78 @@
+{
+  "_version": "celeste_motions_v1",
+  "_description": "Catálogo curado de motions tipo Remotion para EDL de video faceless",
+  "motions": [
+    {
+      "id": "slow_zoom_in",
+      "label": "Slow Zoom In",
+      "type": "zoom",
+      "paramsDefaults": { "from": 1.0, "to": 1.12, "easing": "easeInOut" },
+      "useWhen": "Abrir una escena, crear intimidad, enfatizar un dato clave",
+      "avoidWhen": "Escenas rápidas o de transición donde se necesita amplitud"
+    },
+    {
+      "id": "slow_zoom_out",
+      "label": "Slow Zoom Out",
+      "type": "zoom",
+      "paramsDefaults": { "from": 1.12, "to": 1.0, "easing": "easeInOut" },
+      "useWhen": "Cerrar un bloque temático, dar perspectiva, revelar contexto",
+      "avoidWhen": "Momentos de tensión o énfasis emocional"
+    },
+    {
+      "id": "pan_left_soft",
+      "label": "Pan Left Soft",
+      "type": "pan",
+      "paramsDefaults": { "from": 0, "to": -5, "unit": "%", "easing": "linear" },
+      "useWhen": "Transición narrativa, avance temporal, cambio de tema suave",
+      "avoidWhen": "Escena estática o de impacto donde el movimiento distrae"
+    },
+    {
+      "id": "pan_right_soft",
+      "label": "Pan Right Soft",
+      "type": "pan",
+      "paramsDefaults": { "from": 0, "to": 5, "unit": "%", "easing": "linear" },
+      "useWhen": "Continuidad narrativa, acompañar al flujo de lectura",
+      "avoidWhen": "Apertura fuerte o clímax"
+    },
+    {
+      "id": "push_in_fast",
+      "label": "Push In Fast",
+      "type": "zoom",
+      "paramsDefaults": { "from": 1.0, "to": 1.2, "easing": "easeIn" },
+      "useWhen": "Momento de revelación, dato impactante, clímax del video",
+      "avoidWhen": "Escenas calmas o introductorias"
+    },
+    {
+      "id": "parallax_soft",
+      "label": "Parallax Soft",
+      "type": "parallax",
+      "paramsDefaults": { "layers": 2, "intensity": 0.03, "easing": "linear" },
+      "useWhen": "Imágenes con profundidad, paisajes, composiciones con capas",
+      "avoidWhen": "Close-ups o texturas planas sin profundidad"
+    },
+    {
+      "id": "hold_static",
+      "label": "Hold Static",
+      "type": "static",
+      "paramsDefaults": {},
+      "useWhen": "Texto en pantalla, datos importantes que el viewer debe leer, pausa dramática",
+      "avoidWhen": "Secuencias largas donde la imagen se vuelve aburrida sin movimiento"
+    },
+    {
+      "id": "micro_shake",
+      "label": "Micro Shake",
+      "type": "shake",
+      "paramsDefaults": { "intensity": 2, "frequency": 8, "decay": 0.9 },
+      "useWhen": "Impacto emocional fuerte, dato shockeante, momento de quiebre",
+      "avoidWhen": "Narración calma, introducción, cierre tranquilo"
+    },
+    {
+      "id": "whip_pan_soft",
+      "label": "Whip Pan Soft",
+      "type": "whip",
+      "paramsDefaults": { "direction": "right", "speed": 0.3, "blur": 4 },
+      "useWhen": "Transición energética entre escenas, cambio de tema abrupto",
+      "avoidWhen": "Dentro de una misma escena, narraciones continuas"
+    }
+  ]
+}
