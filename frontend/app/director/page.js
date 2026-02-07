@@ -84,21 +84,15 @@ export default function DirectorPage() {
     }
   }
 
-  // Exportar TXT para editor
   function handleExportTXT() {
-    const lines = ["DIRECTOR IA — MAPA DE EDICIÓN", "=".repeat(60), ""];
-
-    decisions.forEach((d) => {
-      lines.push(`BEAT ${d.beat}  [${d.start}s - ${d.end}s]  (${d.end - d.start}s)`);
-      lines.push(`  PLANO: ${d.plano}`);
-      lines.push(`  MOTION: ${d.motion}`);
-      lines.push(`  B-ROLL: ${d.broll}`);
-      lines.push(`  NOTA: ${d.nota}`);
+    const lines = ["DIRECTOR IA — MAPA DE EDICIÓN", "=".repeat(50), ""];
+    decisions.forEach((d, i) => {
+      lines.push(`${i + 1}. ${d.t}`);
+      lines.push(`   Motion: ${d.motion}`);
+      lines.push(`   B-roll: ${d.broll}`);
+      lines.push(`   Nota: ${d.note}`);
       lines.push("");
     });
-
-    lines.push(`Total: ${decisions.length} decisiones editoriales`);
-
     downloadFile(lines.join("\n"), "mapa-edicion.txt", "text/plain");
     showToast("TXT exportado");
   }
@@ -320,181 +314,48 @@ export default function DirectorPage() {
           )}
 
           {!loading && decisions.length > 0 && (
-            <>
-              {/* Header bar */}
+            <Card style={{ padding: 0, overflow: "hidden" }}>
               <div
                 style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "var(--sp-3)",
                   padding: "var(--sp-2) var(--sp-4)",
-                  background: "var(--panel)",
-                  borderRadius: "var(--radius-md)",
-                  border: "1px solid var(--border-subtle)",
-                }}
-              >
-                <span
-                  style={{
-                    fontFamily: "var(--font-mono)",
-                    fontSize: "12px",
-                    color: "var(--text-secondary)",
-                    fontWeight: 600,
-                  }}
-                >
-                  {decisions.length} decisiones
-                </span>
-                <span style={{ color: "var(--dim)", fontSize: "10px" }}>&middot;</span>
-                <span style={{ fontFamily: "var(--font-mono)", fontSize: "12px", color: "var(--accent)" }}>
-                  {decisions[decisions.length - 1]?.end || 0}s total
-                </span>
-                <Badge color="success">Listo para editor</Badge>
-              </div>
-
-              {/* Tabla de decisiones */}
-              <div
-                style={{
+                  background: "var(--panel-2)",
+                  borderBottom: "1px solid var(--border-subtle)",
                   display: "flex",
-                  flexDirection: "column",
-                  gap: "var(--sp-2)",
-                  maxHeight: "calc(100vh - 240px)",
-                  overflowY: "auto",
-                  paddingRight: "var(--sp-1)",
+                  gap: "var(--sp-3)",
+                  alignItems: "center",
                 }}
               >
-                {decisions.map((d, i) => (
-                  <DecisionCard key={i} decision={d} index={i} />
-                ))}
+                <Badge color="success">{decisions.length} decisiones</Badge>
               </div>
-            </>
+              <div style={{ maxHeight: "calc(100vh - 280px)", overflowY: "auto" }}>
+                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "12px" }}>
+                  <thead>
+                    <tr style={{ background: "var(--panel-2)", borderBottom: "1px solid var(--border)" }}>
+                      <th style={{ padding: "var(--sp-2) var(--sp-3)", textAlign: "left", fontWeight: 700, fontSize: "10px", color: "var(--dim)", textTransform: "uppercase", letterSpacing: "0.06em" }}>Time</th>
+                      <th style={{ padding: "var(--sp-2) var(--sp-3)", textAlign: "left", fontWeight: 700, fontSize: "10px", color: "var(--dim)", textTransform: "uppercase", letterSpacing: "0.06em" }}>Motion</th>
+                      <th style={{ padding: "var(--sp-2) var(--sp-3)", textAlign: "left", fontWeight: 700, fontSize: "10px", color: "var(--dim)", textTransform: "uppercase", letterSpacing: "0.06em" }}>B-roll</th>
+                      <th style={{ padding: "var(--sp-2) var(--sp-3)", textAlign: "left", fontWeight: 700, fontSize: "10px", color: "var(--dim)", textTransform: "uppercase", letterSpacing: "0.06em" }}>Nota</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {decisions.map((d, i) => (
+                      <tr key={i} style={{ borderBottom: "1px solid var(--border-subtle)" }}>
+                        <td style={{ padding: "var(--sp-3)", fontFamily: "var(--font-mono)", fontWeight: 600, color: "var(--accent)" }}>{d.t}</td>
+                        <td style={{ padding: "var(--sp-3)" }}>
+                          <Badge color="warning" style={{ fontSize: "10px" }}>{d.motion}</Badge>
+                        </td>
+                        <td style={{ padding: "var(--sp-3)", color: "var(--text-secondary)", maxWidth: 300 }}>{d.broll}</td>
+                        <td style={{ padding: "var(--sp-3)", color: "var(--muted)", fontSize: "11px", fontStyle: "italic" }}>{d.note}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </Card>
           )}
         </div>
       </div>
     </div>
-  );
-}
-
-/* ── Decision Card ── */
-function DecisionCard({ decision, index }) {
-  const dur = decision.end - decision.start;
-
-  return (
-    <Card
-      style={{
-        padding: "var(--sp-3) var(--sp-4)",
-        borderLeft: "3px solid var(--accent)",
-      }}
-    >
-      {/* Header */}
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: "var(--sp-2)",
-          marginBottom: "var(--sp-2)",
-        }}
-      >
-        <Badge color="accent" style={{ fontFamily: "var(--font-mono)" }}>
-          BEAT {decision.beat}
-        </Badge>
-        <span
-          style={{
-            fontSize: "10px",
-            fontFamily: "var(--font-mono)",
-            color: "var(--text-secondary)",
-            fontWeight: 600,
-          }}
-        >
-          {decision.start}s — {decision.end}s
-        </span>
-        <span style={{ fontSize: "10px", fontFamily: "var(--font-mono)", color: "var(--dim)" }}>
-          ({dur}s)
-        </span>
-      </div>
-
-      {/* Plano + Motion */}
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "1fr 1fr",
-          gap: "var(--sp-2)",
-          marginBottom: "var(--sp-2)",
-        }}
-      >
-        <div>
-          <div
-            style={{
-              fontSize: "9px",
-              fontWeight: 700,
-              color: "var(--dim)",
-              textTransform: "uppercase",
-              letterSpacing: "0.06em",
-              marginBottom: "var(--sp-1)",
-            }}
-          >
-            Plano
-          </div>
-          <Badge color="muted">{decision.plano}</Badge>
-        </div>
-        <div>
-          <div
-            style={{
-              fontSize: "9px",
-              fontWeight: 700,
-              color: "var(--dim)",
-              textTransform: "uppercase",
-              letterSpacing: "0.06em",
-              marginBottom: "var(--sp-1)",
-            }}
-          >
-            Motion
-          </div>
-          <Badge color="warning">{decision.motion}</Badge>
-        </div>
-      </div>
-
-      {/* B-roll */}
-      <div style={{ marginBottom: "var(--sp-2)" }}>
-        <div
-          style={{
-            fontSize: "9px",
-            fontWeight: 700,
-            color: "var(--dim)",
-            textTransform: "uppercase",
-            letterSpacing: "0.06em",
-            marginBottom: "var(--sp-1)",
-          }}
-        >
-          B-Roll
-        </div>
-        <div style={{ fontSize: "12px", color: "var(--text)", lineHeight: 1.5 }}>{decision.broll}</div>
-      </div>
-
-      {/* Nota editorial */}
-      <div>
-        <div
-          style={{
-            fontSize: "9px",
-            fontWeight: 700,
-            color: "var(--dim)",
-            textTransform: "uppercase",
-            letterSpacing: "0.06em",
-            marginBottom: "var(--sp-1)",
-          }}
-        >
-          Nota Editorial
-        </div>
-        <div
-          style={{
-            fontSize: "11px",
-            color: "var(--text-secondary)",
-            lineHeight: 1.6,
-            fontStyle: "italic",
-          }}
-        >
-          {decision.nota}
-        </div>
-      </div>
-    </Card>
   );
 }
 
