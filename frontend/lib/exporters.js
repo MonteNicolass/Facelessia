@@ -1,14 +1,17 @@
-import { formatTime } from "./parser";
+/**
+ * Exporters — JSON, CSV, TXT downloads with export history.
+ */
 
-function slugify(text) {
-  return text
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-|-$/g, "")
-    || "celeste";
+import { saveExport } from "./storage";
+import { fmtTime } from "./scriptParse";
+
+/* ── Helpers ── */
+
+function slug(text) {
+  return text.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "celeste";
 }
 
-function downloadBlob(blob, filename) {
+function download(blob, filename) {
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
@@ -19,136 +22,95 @@ function downloadBlob(blob, filename) {
   URL.revokeObjectURL(url);
 }
 
-/**
- * Exporta todo el proyecto como JSON.
- */
-export function exportJSON(project, script, edl) {
+/* ── JSON Export ── */
+
+export function exportJSON(clips, meta = {}) {
   const data = {
-    version: "2.0",
-    exportedAt: new Date().toISOString(),
+    version: "3.0",
     app: "Celeste",
-    project,
-    script: {
-      raw: script.raw,
-      scenes: script.scenes,
-    },
-    edl,
+    exportedAt: new Date().toISOString(),
+    meta,
+    clips,
   };
-
-  const blob = new Blob([JSON.stringify(data, null, 2)], {
-    type: "application/json",
-  });
-  downloadBlob(blob, `${slugify(project.title)}_project.json`);
+  const name = `${slug(meta.topic || "project")}_edl.json`;
+  download(new Blob([JSON.stringify(data, null, 2)], { type: "application/json" }), name);
+  saveExport({ type: "json", name, clipCount: clips.length, meta });
 }
 
-/**
- * Importa un proyecto JSON. Retorna el data o null si inválido.
- */
-export function importProjectJSON(jsonString) {
-  try {
-    const data = JSON.parse(jsonString);
-    if (data.app === "Celeste" && data.project) {
-      return data;
-    }
-    return null;
-  } catch {
-    return null;
-  }
+/* ── CSV Export ── */
+
+function csvEscape(val) {
+  const s = String(val ?? "");
+  return s.includes(",") || s.includes('"') || s.includes("\n") ? `"${s.replace(/"/g, '""')}"` : s;
 }
 
-/**
- * Exporta el reporte de edición como TXT.
- */
-export function exportTXT(project, script, edl) {
-  const lines = [];
+export function exportCSV(clips, meta = {}) {
+  const headers = ["id", "start", "end", "voiceover", "on_screen_text", "motion", "broll_query", "sfx", "sfx_intensity"];
+  const rows = clips.map((c) =>
+    headers.map((h) => {
+      if (h === "start" || h === "end") return fmtTime(c[h]);
+      return csvEscape(c[h]);
+    }).join(",")
+  );
+  const csv = [headers.join(","), ...rows].join("\n");
+  const name = `${slug(meta.topic || "project")}_edl.csv`;
+  download(new Blob([csv], { type: "text/csv;charset=utf-8" }), name);
+  saveExport({ type: "csv", name, clipCount: clips.length, meta });
+}
+
+/* ── TXT Export ── */
+
+export function exportTXT(clips, meta = {}) {
   const hr = "=".repeat(55);
   const hr2 = "-".repeat(40);
+  const lines = [];
 
   lines.push(hr);
   lines.push("CELESTE — REPORTE DE EDICION");
   lines.push(hr);
   lines.push("");
-  lines.push(`Proyecto: ${project.title || "(sin titulo)"}`);
-  lines.push(`Duracion: ${project.durationSec}s`);
-  lines.push(`Tono: ${project.tone}`);
+  lines.push(`Proyecto: ${meta.topic || "(sin titulo)"}`);
+  if (meta.duration) lines.push(`Duracion: ${meta.duration}s`);
+  if (meta.style) lines.push(`Estilo: ${meta.style}`);
   lines.push(`Exportado: ${new Date().toLocaleString("es-AR")}`);
   lines.push("");
 
-  // Guion
   lines.push(hr2);
-  lines.push("GUION");
+  lines.push("CLIPS");
   lines.push(hr2);
-  for (const scene of script.scenes) {
+  for (const c of clips) {
     lines.push("");
-    lines.push(
-      `[${formatTime(scene.startSec)} - ${formatTime(scene.endSec)}] ESCENA ${scene.id}`
-    );
-    lines.push(`  ${scene.narration}`);
-    if (scene.visualPrompt) {
-      lines.push(`  VISUAL: ${scene.visualPrompt}`);
-    }
+    lines.push(`--- CLIP ${c.id} [${fmtTime(c.start)} - ${fmtTime(c.end)}] ---`);
+    lines.push(`  VOZ: ${c.voiceover}`);
+    if (c.on_screen_text) lines.push(`  TEXTO: ${c.on_screen_text}`);
+    lines.push(`  MOTION: ${c.motion || c.motion_suggestion || "hold"}`);
+    lines.push(`  B-ROLL: ${c.broll_query || "-"}`);
+    lines.push(`  SFX: ${c.sfx || c.sfx_suggestion || "none"} (${c.sfx_intensity || "low"})`);
   }
 
-  // EDL
-  if (edl.length > 0) {
-    lines.push("");
-    lines.push(hr2);
-    lines.push("MAPA DE EDICION (EDL)");
-    lines.push(hr2);
+  lines.push("");
+  lines.push(hr2);
+  lines.push("B-ROLL A BUSCAR:");
+  clips.forEach((c, i) => {
+    if (c.broll_query) lines.push(`  ${i + 1}. [${fmtTime(c.start)}] ${c.broll_query}`);
+  });
 
-    for (const e of edl) {
-      lines.push("");
-      lines.push(
-        `--- ESCENA ${e.id} [${formatTime(e.startSec)} - ${formatTime(e.endSec)}] ---`
-      );
-      const motionName = e.motionLabel || e.motionId || "unknown";
-      const params = e.motionParams || {};
-      const paramStr = params.from !== undefined ? ` ${params.from}x > ${params.to}x` : "";
-      lines.push(`  MOTION: ${motionName}${paramStr}`);
-      lines.push(`    Razon: ${e.motionReason}`);
-      lines.push(`  B-ROLL [${e.brollTimestamp}]: "${e.brollQuery}"`);
-      lines.push(`    Razon: ${e.brollReason}`);
-      lines.push(
-        `  SFX [${formatTime(e.startSec)}]: ${e.sfx.efecto} (${e.sfx.intensidad})`
-      );
-      lines.push(
-        `  TRANSICION: ${e.transition.tipo} (${e.transition.duracion}s)`
-      );
-      if (e.notes) {
-        lines.push(`  NOTAS: ${e.notes}`);
-      }
-    }
+  lines.push("");
+  lines.push("SFX NECESARIOS:");
+  const uniqueSfx = [...new Set(clips.map((c) => c.sfx || c.sfx_suggestion).filter(Boolean).filter((s) => s !== "none"))];
+  uniqueSfx.forEach((s, i) => lines.push(`  ${i + 1}. ${s}`));
 
-    // Shopping lists
-    lines.push("");
-    lines.push(hr2);
-    lines.push("B-ROLL A BUSCAR:");
-    edl.forEach((e, i) => {
-      lines.push(`  ${i + 1}. [${e.brollTimestamp}] ${e.brollQuery}`);
-    });
-
-    lines.push("");
-    lines.push("SFX NECESARIOS:");
-    const uniqueSfx = [...new Set(edl.map((e) => `${e.sfx.efecto} (${e.sfx.intensidad})`))];
-    uniqueSfx.forEach((s, i) => {
-      lines.push(`  ${i + 1}. ${s}`);
-    });
-
-    lines.push("");
-    lines.push("MOTIONS USADOS:");
-    const uniqueMotions = [...new Set(edl.map((e) => e.motionLabel || e.motionId))];
-    uniqueMotions.forEach((m, i) => {
-      lines.push(`  ${i + 1}. ${m}`);
-    });
-  }
+  lines.push("");
+  lines.push("MOTIONS USADOS:");
+  const uniqueMotions = [...new Set(clips.map((c) => c.motion || c.motion_suggestion).filter(Boolean))];
+  uniqueMotions.forEach((m, i) => lines.push(`  ${i + 1}. ${m}`));
 
   lines.push("");
   lines.push(hr);
   lines.push("Generado por Celeste");
   lines.push(hr);
 
-  const blob = new Blob([lines.join("\n")], {
-    type: "text/plain;charset=utf-8",
-  });
-  downloadBlob(blob, `${slugify(project.title)}_reporte.txt`);
+  const name = `${slug(meta.topic || "project")}_reporte.txt`;
+  download(new Blob([lines.join("\n")], { type: "text/plain;charset=utf-8" }), name);
+  saveExport({ type: "txt", name, clipCount: clips.length, meta });
 }
