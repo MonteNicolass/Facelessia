@@ -1,17 +1,19 @@
-// Card contenedora reutilizable
 export default function Card({
   children,
   highlight = false,
-  color = "#1a1a22",
+  color,
   style: extraStyle,
 }) {
+  const bg = highlight && color ? `${color}06` : "var(--panel)";
+  const border = highlight && color ? `${color}20` : "var(--border)";
+
   return (
     <div
       style={{
-        background: highlight ? `${color}08` : "#0e0e12",
-        border: `1px solid ${highlight ? `${color}30` : "#141418"}`,
-        borderRadius: "10px",
-        padding: "16px 20px",
+        background: bg,
+        border: `1px solid ${border}`,
+        borderRadius: "var(--radius-lg)",
+        padding: "var(--sp-4) var(--sp-5)",
         ...extraStyle,
       }}
     >

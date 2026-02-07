@@ -5,6 +5,9 @@ import Button from "@/components/ui/Button";
 import Card from "@/components/ui/Card";
 import Badge from "@/components/ui/Badge";
 import Tabs from "@/components/ui/Tabs";
+import Textarea from "@/components/ui/Textarea";
+import InlineNotice from "@/components/ui/InlineNotice";
+import EmptyState from "@/components/ui/EmptyState";
 import { useStore } from "@/lib/store";
 import { parseScript, formatTime, validateScriptPack } from "@/lib/parser";
 import { generateMockEDL } from "@/lib/mock-generator";
@@ -21,7 +24,6 @@ export default function DirectorPage() {
   function handleImportScriptPack() {
     const text = state.script.raw.trim();
     if (!text) return;
-
     try {
       const obj = JSON.parse(text);
       const result = validateScriptPack(obj);
@@ -77,48 +79,46 @@ export default function DirectorPage() {
     setImportMsg(null);
   }
 
+  function copyToClipboard(text) {
+    navigator.clipboard.writeText(text).catch(() => {});
+  }
+
   const hasScenes = state.script.scenes.length > 0;
   const hasEDL = state.edl.length > 0;
 
   return (
-    <div style={{ padding: "40px 48px", maxWidth: "1100px" }}>
+    <div>
       {/* Header */}
-      <div style={{ marginBottom: "28px" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "8px" }}>
-          <Badge color="#ec4899">DIRECTOR</Badge>
-          <span style={{
-            fontSize: "8px",
-            fontWeight: 700,
-            background: "#ec489920",
-            color: "#ec4899",
-            padding: "2px 6px",
-            borderRadius: "3px",
-          }}>KEY</span>
+      <div style={{ marginBottom: "var(--sp-6)" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "var(--sp-2)", marginBottom: "var(--sp-2)" }}>
+          <Badge color="var(--pink)">DIRECTOR</Badge>
+          <Badge color="var(--pink)" style={{ fontSize: "9px", padding: "1px 6px" }}>PRO</Badge>
         </div>
-        <h1 style={{ fontSize: "22px", fontWeight: 800, color: "#e5e5e5", margin: 0, letterSpacing: "-0.5px" }}>
+        <h1 style={{ fontSize: "22px", marginBottom: "var(--sp-1)" }}>
           Mapa de edicion
         </h1>
-        <p style={{ fontSize: "12px", color: "#444", margin: "4px 0 0" }}>
+        <p style={{ fontSize: "13px" }}>
           Importa guion (texto o ScriptPack JSON) &rarr; detecta escenas &rarr; genera EDL &rarr; exporta.
         </p>
       </div>
 
       {/* 2-panel layout */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "24px", alignItems: "start" }}>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "var(--sp-6)", alignItems: "start" }}>
         {/* === LEFT PANEL === */}
-        <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: "var(--sp-3)" }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
             <SectionLabel>Guion</SectionLabel>
             <button
               onClick={() => fileRef.current?.click()}
               style={{
-                fontSize: "10px",
-                color: "#555",
+                fontSize: "11px",
+                color: "var(--muted)",
                 background: "none",
                 border: "none",
                 cursor: "pointer",
                 fontFamily: "inherit",
-                textDecoration: "underline",
+                padding: "2px 0",
+                transition: "color var(--transition-fast)",
               }}
             >
               Cargar archivo
@@ -132,7 +132,7 @@ export default function DirectorPage() {
             />
           </div>
 
-          <textarea
+          <Textarea
             value={state.script.raw}
             onChange={(e) => {
               dispatch({ type: "SET_SCRIPT_RAW", payload: e.target.value });
@@ -140,25 +140,18 @@ export default function DirectorPage() {
             }}
             placeholder={"Pega tu guion aca.\n\nTexto plano con timestamps:\n[0:00] Escena uno...\n[0:15] Escena dos...\n\nO ScriptPack JSON:\n{ \"_format\": \"celeste_scriptpack_v1\", ... }\n\nO simplemente parrafos."}
             rows={16}
-            style={textareaStyle}
+            style={{ minHeight: "300px" }}
           />
 
-          {/* Mensaje de feedback */}
+          {/* Feedback */}
           {importMsg && (
-            <div style={{
-              fontSize: "10px",
-              color: importMsg.ok ? "#10b981" : "#ef4444",
-              padding: "6px 10px",
-              background: importMsg.ok ? "#10b98110" : "#ef444410",
-              borderRadius: "6px",
-              border: `1px solid ${importMsg.ok ? "#10b98120" : "#ef444420"}`,
-            }}>
+            <InlineNotice variant={importMsg.ok ? "success" : "error"}>
               {importMsg.text}
-            </div>
+            </InlineNotice>
           )}
 
           {/* Action buttons */}
-          <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: "var(--sp-2)" }}>
             <Button
               size="sm"
               variant="secondary"
@@ -189,7 +182,7 @@ export default function DirectorPage() {
           {/* Stats */}
           {hasScenes && (
             <Card>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "10px" }}>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "var(--sp-3)" }}>
                 <Stat label="Escenas" value={state.script.scenes.length} />
                 <Stat label="EDL" value={state.edl.length || "\u2014"} />
                 <Stat
@@ -206,7 +199,7 @@ export default function DirectorPage() {
         </div>
 
         {/* === RIGHT PANEL === */}
-        <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: "var(--sp-3)" }}>
           <Tabs
             tabs={[
               { id: "scenes", label: "Escenas", count: state.script.scenes.length || undefined },
@@ -219,35 +212,42 @@ export default function DirectorPage() {
 
           {/* --- Tab: Escenas --- */}
           {tab === "scenes" && (
-            <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: "var(--sp-2)" }}>
               {!hasScenes && (
-                <EmptyState>
+                <EmptyState
+                  icon={
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z" />
+                      <polyline points="14 2 14 8 20 8" />
+                    </svg>
+                  }
+                >
                   Pega un guion a la izquierda y presiona &quot;Detectar escenas&quot;.
                 </EmptyState>
               )}
               {state.script.scenes.map((s) => (
-                <Card key={s.id}>
-                  <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "6px" }}>
-                    <Badge color="#ec4899">#{s.id}</Badge>
-                    <Badge color="#8b5cf6">
+                <Card key={s.id} style={{ padding: "var(--sp-3)" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: "var(--sp-2)", marginBottom: "var(--sp-2)" }}>
+                    <Badge color="var(--pink)">#{s.id}</Badge>
+                    <Badge color="var(--accent)">
                       {formatTime(s.startSec)} - {formatTime(s.endSec)}
                     </Badge>
-                    <span style={{ fontSize: "9px", color: "#333" }}>
+                    <span style={{ fontSize: "10px", color: "var(--dim)", marginLeft: "auto" }}>
                       {s.endSec - s.startSec}s
                     </span>
                   </div>
-                  <div style={{ fontSize: "11px", color: "#888", lineHeight: "1.5" }}>
+                  <div style={{ fontSize: "12px", color: "var(--text-secondary)", lineHeight: 1.6 }}>
                     {s.narration}
                   </div>
                   {s.visualPrompt && (
                     <div style={{
-                      fontSize: "10px",
-                      color: "#555",
+                      fontSize: "11px",
+                      color: "var(--muted)",
                       fontStyle: "italic",
-                      background: "#111116",
-                      padding: "6px 10px",
-                      borderRadius: "4px",
-                      marginTop: "6px",
+                      background: "var(--panel-2)",
+                      padding: "var(--sp-2) var(--sp-3)",
+                      borderRadius: "var(--radius-sm)",
+                      marginTop: "var(--sp-2)",
                     }}>
                       {s.visualPrompt}
                     </div>
@@ -259,23 +259,38 @@ export default function DirectorPage() {
 
           {/* --- Tab: EDL --- */}
           {tab === "edl" && (
-            <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: "var(--sp-2)" }}>
               {!hasEDL && (
-                <EmptyState>
+                <EmptyState
+                  icon={
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                      <rect x="2" y="7" width="20" height="14" rx="2" ry="2" />
+                      <path d="m17 2-5 5-5-5" />
+                    </svg>
+                  }
+                >
                   Detecta escenas primero, luego presiona &quot;Generar EDL&quot;.
                 </EmptyState>
               )}
               {state.edl.map((entry) => (
-                <EDLCard key={entry.id} entry={entry} />
+                <EDLCard key={entry.id} entry={entry} onCopy={copyToClipboard} />
               ))}
             </div>
           )}
 
           {/* --- Tab: Export --- */}
           {tab === "export" && (
-            <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: "var(--sp-3)" }}>
               {!hasScenes && !hasEDL && (
-                <EmptyState>
+                <EmptyState
+                  icon={
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                      <polyline points="7 10 12 15 17 10" />
+                      <line x1="12" y1="15" x2="12" y2="3" />
+                    </svg>
+                  }
+                >
                   Necesitas escenas o EDL para exportar.
                 </EmptyState>
               )}
@@ -283,7 +298,7 @@ export default function DirectorPage() {
                 <>
                   <Card>
                     <SectionLabel>Resumen del proyecto</SectionLabel>
-                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: "10px", marginTop: "10px" }}>
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: "var(--sp-3)", marginTop: "var(--sp-3)" }}>
                       <Stat label="Titulo" value={state.project.title || "Sin titulo"} />
                       <Stat label="Escenas" value={state.script.scenes.length} />
                       <Stat label="EDL" value={state.edl.length || "\u2014"} />
@@ -291,7 +306,7 @@ export default function DirectorPage() {
                     </div>
                   </Card>
 
-                  <div style={{ display: "flex", gap: "8px" }}>
+                  <div style={{ display: "flex", gap: "var(--sp-2)" }}>
                     <Button onClick={() => exportJSON(state.project, state.script, state.edl)}>
                       Exportar JSON
                     </Button>
@@ -303,25 +318,31 @@ export default function DirectorPage() {
                   {hasEDL && (
                     <>
                       <SectionLabel>Shopping lists</SectionLabel>
-                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
+                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "var(--sp-3)" }}>
                         <Card>
-                          <div style={{ fontSize: "10px", fontWeight: 700, color: "#6366f1", marginBottom: "8px" }}>
-                            B-Roll a buscar ({state.edl.length})
+                          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "var(--sp-3)" }}>
+                            <div style={{ fontSize: "10px", fontWeight: 700, color: "var(--accent)", textTransform: "uppercase", letterSpacing: "0.3px" }}>
+                              B-Roll a buscar ({state.edl.length})
+                            </div>
+                            <CopyBtn onClick={() => copyToClipboard(state.edl.map((e, i) => `${i + 1}. [${e.brollTimestamp}] ${e.brollQuery}`).join("\n"))} />
                           </div>
                           {state.edl.map((e, i) => (
-                            <div key={i} style={{ fontSize: "10px", color: "#888", marginBottom: "4px", display: "flex", gap: "6px" }}>
-                              <span style={{ color: "#333" }}>{i + 1}.</span>
-                              <span>[{e.brollTimestamp}] {e.brollQuery}</span>
+                            <div key={i} style={{ fontSize: "11px", color: "var(--text-secondary)", marginBottom: "var(--sp-1)", display: "flex", gap: "var(--sp-2)" }}>
+                              <span style={{ color: "var(--dim)", flexShrink: 0 }}>{i + 1}.</span>
+                              <span><span className="mono" style={{ color: "var(--muted)", fontSize: "10px" }}>[{e.brollTimestamp}]</span> {e.brollQuery}</span>
                             </div>
                           ))}
                         </Card>
                         <Card>
-                          <div style={{ fontSize: "10px", fontWeight: 700, color: "#10b981", marginBottom: "8px" }}>
-                            SFX necesarios
+                          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "var(--sp-3)" }}>
+                            <div style={{ fontSize: "10px", fontWeight: 700, color: "var(--success)", textTransform: "uppercase", letterSpacing: "0.3px" }}>
+                              SFX necesarios
+                            </div>
+                            <CopyBtn onClick={() => copyToClipboard([...new Set(state.edl.map((e) => `${e.sfx.efecto} (${e.sfx.intensidad})`))].join("\n"))} />
                           </div>
                           {[...new Set(state.edl.map((e) => `${e.sfx.efecto} (${e.sfx.intensidad})`))].map((s, i) => (
-                            <div key={i} style={{ fontSize: "10px", color: "#888", marginBottom: "4px", display: "flex", gap: "6px" }}>
-                              <span style={{ color: "#333" }}>{i + 1}.</span>
+                            <div key={i} style={{ fontSize: "11px", color: "var(--text-secondary)", marginBottom: "var(--sp-1)", display: "flex", gap: "var(--sp-2)" }}>
+                              <span style={{ color: "var(--dim)", flexShrink: 0 }}>{i + 1}.</span>
                               <span>{s}</span>
                             </div>
                           ))}
@@ -340,68 +361,98 @@ export default function DirectorPage() {
 }
 
 // --- EDL Card ---
-function EDLCard({ entry }) {
+function EDLCard({ entry, onCopy }) {
   return (
-    <Card>
-      <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "10px", flexWrap: "wrap" }}>
-        <Badge color="#ec4899">#{entry.id}</Badge>
-        <Badge color="#8b5cf6">
+    <Card style={{ padding: "var(--sp-3)" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: "var(--sp-2)", marginBottom: "var(--sp-3)", flexWrap: "wrap" }}>
+        <Badge color="var(--pink)">#{entry.id}</Badge>
+        <Badge color="var(--accent)">
           {formatTime(entry.startSec)} - {formatTime(entry.endSec)}
         </Badge>
-        <Badge color="#f59e0b">{entry.motionLabel}</Badge>
+        <Badge color="var(--warning)">{entry.motionLabel}</Badge>
         <span style={{
-          fontSize: "8px",
-          color: "#555",
-          background: "#ffffff08",
+          fontSize: "9px",
+          color: "var(--muted)",
+          background: "var(--panel-2)",
           padding: "2px 6px",
-          borderRadius: "3px",
+          borderRadius: "var(--radius-sm)",
         }}>
           {entry.motionType}
         </span>
       </div>
 
-      <Row label="Motion">
-        <span style={{ color: "#ccc" }}>{entry.motionLabel}</span>
-        {entry.motionParams.from !== undefined && (
-          <span style={{ color: "#555", fontSize: "10px", marginLeft: "6px" }}>
-            {entry.motionParams.from} &rarr; {entry.motionParams.to}
+      {/* EDL table rows */}
+      <div style={{ display: "grid", gap: "var(--sp-2)" }}>
+        <Row label="Motion">
+          <span style={{ color: "var(--text-secondary)" }}>{entry.motionLabel}</span>
+          {entry.motionParams.from !== undefined && (
+            <span className="mono" style={{ color: "var(--muted)", fontSize: "10px", marginLeft: "var(--sp-2)" }}>
+              {entry.motionParams.from} &rarr; {entry.motionParams.to}
+            </span>
+          )}
+          <Reason>{entry.motionReason}</Reason>
+        </Row>
+
+        <Row label="B-Roll">
+          <div style={{ display: "flex", alignItems: "center", gap: "var(--sp-2)" }}>
+            <span className="mono" style={{ color: "var(--accent)", fontSize: "10px" }}>{entry.brollTimestamp}</span>
+            <CopyBtn onClick={() => onCopy(entry.brollQuery)} />
+          </div>
+          <div style={{
+            fontSize: "11px",
+            color: "var(--text-secondary)",
+            background: "var(--panel-2)",
+            padding: "var(--sp-1) var(--sp-2)",
+            borderRadius: "var(--radius-sm)",
+            marginTop: "var(--sp-1)",
+          }} className="mono">
+            {entry.brollQuery}
+          </div>
+          <Reason>{entry.brollReason}</Reason>
+        </Row>
+
+        <Row label="SFX">
+          <span style={{ color: "var(--text-secondary)" }}>{entry.sfx.efecto}</span>
+          <span style={{ color: "var(--muted)", fontSize: "10px", marginLeft: "var(--sp-1)" }}>
+            ({entry.sfx.intensidad})
           </span>
-        )}
-        <Reason>{entry.motionReason}</Reason>
-      </Row>
+        </Row>
 
-      <Row label="B-Roll">
-        <span style={{ color: "#8b5cf6", fontSize: "10px" }}>{entry.brollTimestamp}</span>
-        <div style={{
-          fontSize: "10px",
-          color: "#ccc",
-          background: "#111116",
-          padding: "4px 8px",
-          borderRadius: "4px",
-          marginTop: "3px",
-          fontFamily: "monospace",
-        }}>
-          {entry.brollQuery}
-        </div>
-        <Reason>{entry.brollReason}</Reason>
-      </Row>
-
-      <Row label="SFX">
-        <span style={{ color: "#ccc" }}>{entry.sfx.efecto}</span>
-        <span style={{ color: "#555", fontSize: "9px", marginLeft: "4px" }}>
-          ({entry.sfx.intensidad})
-        </span>
-      </Row>
-
-      <Row label="Transicion">
-        <span style={{ color: "#ccc" }}>{entry.transition.tipo}</span>
-        {entry.transition.duracion > 0 && (
-          <span style={{ color: "#555", fontSize: "9px", marginLeft: "4px" }}>
-            {entry.transition.duracion}s
-          </span>
-        )}
-      </Row>
+        <Row label="Transicion">
+          <span style={{ color: "var(--text-secondary)" }}>{entry.transition.tipo}</span>
+          {entry.transition.duracion > 0 && (
+            <span style={{ color: "var(--muted)", fontSize: "10px", marginLeft: "var(--sp-1)" }}>
+              {entry.transition.duracion}s
+            </span>
+          )}
+        </Row>
+      </div>
     </Card>
+  );
+}
+
+// --- Copy button ---
+function CopyBtn({ onClick }) {
+  return (
+    <button
+      onClick={onClick}
+      title="Copiar"
+      style={{
+        background: "none",
+        border: "none",
+        cursor: "pointer",
+        color: "var(--dim)",
+        padding: "2px",
+        display: "flex",
+        alignItems: "center",
+        transition: "color var(--transition-fast)",
+      }}
+    >
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+        <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+      </svg>
+    </button>
   );
 }
 
@@ -409,9 +460,9 @@ function EDLCard({ entry }) {
 function SectionLabel({ children }) {
   return (
     <div style={{
-      fontSize: "10px",
-      fontWeight: 700,
-      color: "#555",
+      fontSize: "11px",
+      fontWeight: 600,
+      color: "var(--dim)",
       letterSpacing: "0.5px",
       textTransform: "uppercase",
     }}>
@@ -423,10 +474,10 @@ function SectionLabel({ children }) {
 function Stat({ label, value }) {
   return (
     <div>
-      <div style={{ fontSize: "9px", color: "#444", textTransform: "uppercase", marginBottom: "2px" }}>
+      <div style={{ fontSize: "10px", color: "var(--dim)", textTransform: "uppercase", marginBottom: "2px", fontWeight: 600, letterSpacing: "0.3px" }}>
         {label}
       </div>
-      <div style={{ fontSize: "12px", color: "#999", fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+      <div style={{ fontSize: "13px", color: "var(--text-secondary)", fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
         {value}
       </div>
     </div>
@@ -435,50 +486,19 @@ function Stat({ label, value }) {
 
 function Row({ label, children }) {
   return (
-    <div style={{ marginBottom: "8px" }}>
-      <span style={{ fontSize: "9px", color: "#444", textTransform: "uppercase", marginRight: "6px", fontWeight: 700 }}>
-        {label}:
+    <div style={{ padding: "var(--sp-1) 0", borderBottom: "1px solid var(--border-subtle)" }}>
+      <span style={{ fontSize: "9px", color: "var(--dim)", textTransform: "uppercase", marginRight: "var(--sp-2)", fontWeight: 700, letterSpacing: "0.3px" }}>
+        {label}
       </span>
-      <div style={{ fontSize: "11px", color: "#888", marginTop: "2px" }}>{children}</div>
+      <div style={{ fontSize: "12px", color: "var(--text-secondary)", marginTop: "2px" }}>{children}</div>
     </div>
   );
 }
 
 function Reason({ children }) {
   return (
-    <div style={{ fontSize: "9px", color: "#555", fontStyle: "italic", marginTop: "2px" }}>
+    <div style={{ fontSize: "10px", color: "var(--muted)", fontStyle: "italic", marginTop: "2px" }}>
       {children}
     </div>
   );
 }
-
-function EmptyState({ children }) {
-  return (
-    <div style={{
-      padding: "40px 20px",
-      textAlign: "center",
-      fontSize: "12px",
-      color: "#333",
-      border: "1px dashed #1a1a22",
-      borderRadius: "10px",
-    }}>
-      {children}
-    </div>
-  );
-}
-
-const textareaStyle = {
-  width: "100%",
-  background: "#111116",
-  border: "1px solid #1a1a22",
-  borderRadius: "8px",
-  padding: "12px 14px",
-  fontSize: "12px",
-  color: "#ccc",
-  fontFamily: "inherit",
-  outline: "none",
-  resize: "vertical",
-  lineHeight: "1.6",
-  transition: "border-color 0.15s",
-  minHeight: "300px",
-};

@@ -1,3 +1,71 @@
+/* ============================================
+   CELESTE — Design Tokens + Global Styles
+   ============================================ */
+
+:root {
+  /* --- Colors --- */
+  --bg: #0a0a0c;
+  --panel: #111114;
+  --panel-2: #161619;
+  --panel-hover: #1a1a1e;
+
+  --text: #ececef;
+  --text-secondary: #9898a0;
+  --muted: #606068;
+  --dim: #3a3a42;
+
+  --border: #222228;
+  --border-subtle: #1a1a1f;
+
+  --accent: #8b5cf6;
+  --accent-hover: #7c3aed;
+  --accent-muted: rgba(139, 92, 246, 0.1);
+  --accent-border: rgba(139, 92, 246, 0.2);
+
+  --pink: #ec4899;
+  --pink-muted: rgba(236, 72, 153, 0.1);
+  --pink-border: rgba(236, 72, 153, 0.2);
+
+  --danger: #ef4444;
+  --danger-muted: rgba(239, 68, 68, 0.1);
+  --success: #10b981;
+  --success-muted: rgba(16, 185, 129, 0.1);
+  --warning: #f59e0b;
+  --warning-muted: rgba(245, 158, 11, 0.1);
+
+  /* --- Spacing --- */
+  --sp-1: 4px;
+  --sp-2: 8px;
+  --sp-3: 12px;
+  --sp-4: 16px;
+  --sp-5: 20px;
+  --sp-6: 24px;
+  --sp-8: 32px;
+  --sp-10: 40px;
+  --sp-12: 48px;
+
+  /* --- Radii --- */
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+  --radius-full: 9999px;
+
+  /* --- Shadows --- */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.25);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.35);
+  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.4);
+
+  /* --- Transitions --- */
+  --transition-fast: 0.12s ease;
+  --transition-base: 0.18s ease;
+  --transition-slow: 0.3s ease;
+
+  /* --- Sidebar --- */
+  --sidebar-width: 232px;
+}
+
+/* Reset */
 *,
 *::before,
 *::after {
@@ -11,32 +79,44 @@ html {
 }
 
 body {
-  background: #08080c;
-  color: #e5e5e5;
-  font-family: "JetBrains Mono", "SF Mono", "Fira Code", "Cascadia Code",
-    monospace;
+  background: var(--bg);
+  color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+    "Helvetica Neue", Arial, sans-serif;
+  font-size: 13px;
+  line-height: 1.5;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
+/* Typography */
+h1 { font-size: 20px; font-weight: 700; color: var(--text); letter-spacing: -0.3px; line-height: 1.3; }
+h2 { font-size: 15px; font-weight: 600; color: var(--text); letter-spacing: -0.2px; line-height: 1.4; }
+h3 { font-size: 13px; font-weight: 600; color: var(--text-secondary); line-height: 1.4; }
+p { color: var(--text-secondary); line-height: 1.6; }
+small { font-size: 11px; color: var(--muted); }
+
+/* Selection */
 ::selection {
-  background: #8b5cf640;
+  background: rgba(139, 92, 246, 0.35);
   color: #fff;
 }
 
-::-webkit-scrollbar {
-  width: 5px;
+/* Scrollbar */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--dim); }
+
+/* Focus */
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
 }
 
-::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-::-webkit-scrollbar-thumb {
-  background: #1a1a22;
-  border-radius: 3px;
-}
-
-::-webkit-scrollbar-thumb:hover {
-  background: #333;
+/* Mono utility */
+.mono {
+  font-family: "JetBrains Mono", "SF Mono", "Fira Code", "Cascadia Code", monospace;
+  font-size: 12px;
 }

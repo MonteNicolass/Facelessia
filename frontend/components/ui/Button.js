@@ -1,4 +1,5 @@
-// Botón base reutilizable
+"use client";
+
 export default function Button({
   children,
   onClick,
@@ -6,51 +7,58 @@ export default function Button({
   disabled = false,
   size = "md",
   style: extraStyle,
+  type = "button",
 }) {
   const base = {
     fontFamily: "inherit",
-    fontWeight: 700,
-    border: "none",
-    borderRadius: "8px",
+    fontWeight: 600,
+    border: "1px solid transparent",
+    borderRadius: "var(--radius-md)",
     cursor: disabled ? "not-allowed" : "pointer",
-    transition: "all 0.15s",
-    letterSpacing: "-0.2px",
+    transition: "all var(--transition-base)",
     display: "inline-flex",
     alignItems: "center",
+    justifyContent: "center",
     gap: "6px",
-    opacity: disabled ? 0.4 : 1,
+    opacity: disabled ? 0.35 : 1,
+    whiteSpace: "nowrap",
+    lineHeight: 1,
   };
 
   const sizes = {
-    sm: { padding: "6px 12px", fontSize: "11px" },
-    md: { padding: "10px 18px", fontSize: "12px" },
-    lg: { padding: "12px 24px", fontSize: "13px" },
+    sm: { padding: "6px 12px", fontSize: "12px" },
+    md: { padding: "8px 16px", fontSize: "13px" },
+    lg: { padding: "10px 20px", fontSize: "14px" },
   };
 
   const variants = {
     primary: {
-      background: "linear-gradient(135deg, #8b5cf6, #ec4899)",
+      background: "var(--accent)",
       color: "#fff",
+      borderColor: "var(--accent)",
     },
     secondary: {
-      background: "#111116",
-      color: "#888",
-      border: "1px solid #1a1a22",
+      background: "var(--panel-2)",
+      color: "var(--text-secondary)",
+      borderColor: "var(--border)",
     },
     ghost: {
       background: "transparent",
-      color: "#666",
+      color: "var(--muted)",
+      borderColor: "transparent",
     },
     danger: {
-      background: "#ef444420",
-      color: "#ef4444",
-      border: "1px solid #ef444430",
+      background: "var(--danger-muted)",
+      color: "var(--danger)",
+      borderColor: "rgba(239,68,68,0.15)",
     },
   };
 
   return (
     <button
+      type={type}
       onClick={disabled ? undefined : onClick}
+      disabled={disabled}
       style={{ ...base, ...sizes[size], ...variants[variant], ...extraStyle }}
     >
       {children}

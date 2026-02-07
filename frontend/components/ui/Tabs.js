@@ -1,15 +1,15 @@
 "use client";
 
-// Tabs minimalistas
 export default function Tabs({ tabs, active, onChange }) {
   return (
     <div
       style={{
         display: "flex",
-        gap: "3px",
-        background: "#0a0a0e",
+        gap: "2px",
+        background: "var(--bg)",
         padding: "3px",
-        borderRadius: "8px",
+        borderRadius: "var(--radius-md)",
+        border: "1px solid var(--border-subtle)",
         width: "fit-content",
       }}
     >
@@ -18,25 +18,28 @@ export default function Tabs({ tabs, active, onChange }) {
           key={tab.id}
           onClick={() => onChange(tab.id)}
           style={{
-            padding: "6px 16px",
-            fontSize: "11px",
-            fontWeight: 600,
+            padding: "6px 14px",
+            fontSize: "12px",
+            fontWeight: 500,
             fontFamily: "inherit",
-            background: active === tab.id ? "#ec489915" : "transparent",
-            color: active === tab.id ? "#ec4899" : "#555",
-            border: "none",
-            borderRadius: "6px",
+            background: active === tab.id ? "var(--panel-2)" : "transparent",
+            color: active === tab.id ? "var(--text)" : "var(--muted)",
+            border: active === tab.id ? "1px solid var(--border)" : "1px solid transparent",
+            borderRadius: "var(--radius-sm)",
             cursor: "pointer",
-            transition: "all 0.15s",
+            transition: "all var(--transition-fast)",
+            display: "inline-flex",
+            alignItems: "center",
+            gap: "6px",
           }}
         >
           {tab.label}
           {tab.count !== undefined && (
             <span
               style={{
-                marginLeft: "5px",
-                fontSize: "9px",
-                color: active === tab.id ? "#ec489980" : "#333",
+                fontSize: "10px",
+                color: active === tab.id ? "var(--text-secondary)" : "var(--dim)",
+                fontWeight: 600,
               }}
             >
               {tab.count}
