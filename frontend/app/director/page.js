@@ -3,20 +3,14 @@
 export const dynamic = "force-dynamic";
 
 import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
-import { isAIConnected } from "@/lib/aiProvidersConfig";
 import Topbar from "@/components/Topbar";
 import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
 import Badge from "@/components/ui/Badge";
 import Textarea from "@/components/ui/Textarea";
 import EmptyState from "@/components/ui/EmptyState";
-import Link from "next/link";
 
 export default function DirectorPage() {
-  const router = useRouter();
-
-  const [claudeConnected, setClaudeConnected] = useState(false);
   const [script, setScript] = useState("");
   const [decisions, setDecisions] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -26,11 +20,6 @@ export default function DirectorPage() {
     setToast(msg);
     setTimeout(() => setToast(null), 2000);
   }
-
-  useEffect(() => {
-    const connected = isAIConnected("claude");
-    setClaudeConnected(connected);
-  }, []);
 
   useEffect(() => {
     try {
@@ -52,20 +41,10 @@ export default function DirectorPage() {
     setLoading(true);
     setDecisions([]);
 
+    await delay(600);
+
     try {
-      const res = await fetch("/api/director/analyze", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ script }),
-      });
-
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err?.error || "Error al analizar");
-      }
-
-      const data = await res.json();
-      const newDecisions = Array.isArray(data?.decisions) ? data.decisions : [];
+      const newDecisions = mockAnalyze(script);
       setDecisions(newDecisions);
 
       localStorage.setItem(
@@ -110,62 +89,6 @@ export default function DirectorPage() {
     localStorage.removeItem("director_last_analysis");
   }
 
-  if (!claudeConnected) {
-    return (
-      <div style={{ maxWidth: 600, margin: "0 auto" }}>
-        <Topbar title="Director IA" badge="bloqueado" />
-        <Card
-          style={{
-            padding: "var(--sp-8) var(--sp-6)",
-            textAlign: "center",
-            background: "color-mix(in srgb, var(--danger) 5%, var(--panel))",
-            borderColor: "color-mix(in srgb, var(--danger) 20%, transparent)",
-          }}
-        >
-          <div
-            style={{
-              width: 48,
-              height: 48,
-              borderRadius: "50%",
-              background: "color-mix(in srgb, var(--danger) 12%, transparent)",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              margin: "0 auto var(--sp-4)",
-            }}
-          >
-            <svg
-              width="24"
-              height="24"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="var(--danger)"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
-              <path d="M7 11V7a5 5 0 0110 0v4" />
-            </svg>
-          </div>
-          <h2 style={{ fontSize: "18px", fontWeight: 600, color: "var(--danger)", marginBottom: "var(--sp-2)" }}>
-            Director IA bloqueado
-          </h2>
-          <p style={{ fontSize: "13px", color: "var(--text-secondary)", lineHeight: 1.6, marginBottom: "var(--sp-5)" }}>
-            Necesitás conectar Claude (Anthropic) para usar Director IA.
-            <br />
-            Claude es obligatorio para generar decisiones editoriales.
-          </p>
-          <Link href="/settings/ai">
-            <Button variant="primary" size="lg">
-              Conectar Claude ahora
-            </Button>
-          </Link>
-        </Card>
-      </div>
-    );
-  }
-
   const hasDecisions = Array.isArray(decisions) && decisions.length > 0;
 
   return (
@@ -199,7 +122,7 @@ export default function DirectorPage() {
         </div>
       )}
 
-      <Topbar title="Director IA" badge="v1">
+      <Topbar title="Director IA" badge="v1 mock">
         {hasDecisions && (
           <>
             <Button variant="ghost" size="sm" onClick={handleExportTXT}>
@@ -219,7 +142,7 @@ export default function DirectorPage() {
             value={script}
             onChange={(e) => setScript(e.target.value)}
             placeholder={
-              "Pegá tu guion acá...\n\nCada línea debería ser un beat/escena del video.\nClaude va a analizar el ritmo, timing y decisiones visuales."
+              "Pegá tu guion acá...\n\nCada línea debería ser un beat/escena del video.\nEl Director va a analizar el ritmo y decisiones visuales."
             }
             rows={14}
           />
@@ -250,9 +173,8 @@ export default function DirectorPage() {
               borderRadius: "var(--radius-sm)",
             }}
           >
-            <strong style={{ color: "var(--text-secondary)" }}>Tip:</strong> El Director IA analiza tu
-            guion y genera decisiones editoriales: motions, planos, b-roll, notas. Pensado para editores
-            humanos.
+            <strong style={{ color: "var(--text-secondary)" }}>Tip:</strong> El Director analiza tu guion
+            y genera decisiones editoriales: motions, b-roll, notas. Pensado para editores humanos.
           </div>
         </Card>
 
@@ -279,11 +201,9 @@ export default function DirectorPage() {
                 }}
               />
               <span style={{ fontSize: "13px", fontWeight: 600, color: "var(--text-secondary)" }}>
-                Claude está analizando el guion...
+                Analizando el guion...
               </span>
-              <span style={{ fontSize: "11px", color: "var(--dim)" }}>
-                Generando decisiones editoriales
-              </span>
+              <span style={{ fontSize: "11px", color: "var(--dim)" }}>Generando decisiones editoriales</span>
             </div>
           )}
 
@@ -326,21 +246,91 @@ export default function DirectorPage() {
                 <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "12px" }}>
                   <thead>
                     <tr style={{ background: "var(--panel-2)", borderBottom: "1px solid var(--border)" }}>
-                      <th style={{ padding: "var(--sp-2) var(--sp-3)", textAlign: "left", fontWeight: 700, fontSize: "10px", color: "var(--dim)", textTransform: "uppercase", letterSpacing: "0.06em" }}>Time</th>
-                      <th style={{ padding: "var(--sp-2) var(--sp-3)", textAlign: "left", fontWeight: 700, fontSize: "10px", color: "var(--dim)", textTransform: "uppercase", letterSpacing: "0.06em" }}>Motion</th>
-                      <th style={{ padding: "var(--sp-2) var(--sp-3)", textAlign: "left", fontWeight: 700, fontSize: "10px", color: "var(--dim)", textTransform: "uppercase", letterSpacing: "0.06em" }}>B-roll</th>
-                      <th style={{ padding: "var(--sp-2) var(--sp-3)", textAlign: "left", fontWeight: 700, fontSize: "10px", color: "var(--dim)", textTransform: "uppercase", letterSpacing: "0.06em" }}>Nota</th>
+                      <th
+                        style={{
+                          padding: "var(--sp-2) var(--sp-3)",
+                          textAlign: "left",
+                          fontWeight: 700,
+                          fontSize: "10px",
+                          color: "var(--dim)",
+                          textTransform: "uppercase",
+                          letterSpacing: "0.06em",
+                        }}
+                      >
+                        Time
+                      </th>
+                      <th
+                        style={{
+                          padding: "var(--sp-2) var(--sp-3)",
+                          textAlign: "left",
+                          fontWeight: 700,
+                          fontSize: "10px",
+                          color: "var(--dim)",
+                          textTransform: "uppercase",
+                          letterSpacing: "0.06em",
+                        }}
+                      >
+                        Motion
+                      </th>
+                      <th
+                        style={{
+                          padding: "var(--sp-2) var(--sp-3)",
+                          textAlign: "left",
+                          fontWeight: 700,
+                          fontSize: "10px",
+                          color: "var(--dim)",
+                          textTransform: "uppercase",
+                          letterSpacing: "0.06em",
+                        }}
+                      >
+                        B-roll
+                      </th>
+                      <th
+                        style={{
+                          padding: "var(--sp-2) var(--sp-3)",
+                          textAlign: "left",
+                          fontWeight: 700,
+                          fontSize: "10px",
+                          color: "var(--dim)",
+                          textTransform: "uppercase",
+                          letterSpacing: "0.06em",
+                        }}
+                      >
+                        Nota
+                      </th>
                     </tr>
                   </thead>
                   <tbody>
                     {decisions.map((d, i) => (
                       <tr key={i} style={{ borderBottom: "1px solid var(--border-subtle)" }}>
-                        <td style={{ padding: "var(--sp-3)", fontFamily: "var(--font-mono)", fontWeight: 600, color: "var(--accent)" }}>{d?.t || "—"}</td>
-                        <td style={{ padding: "var(--sp-3)" }}>
-                          <Badge color="warning" style={{ fontSize: "10px" }}>{d?.motion || "—"}</Badge>
+                        <td
+                          style={{
+                            padding: "var(--sp-3)",
+                            fontFamily: "var(--font-mono)",
+                            fontWeight: 600,
+                            color: "var(--accent)",
+                          }}
+                        >
+                          {d?.t || "—"}
                         </td>
-                        <td style={{ padding: "var(--sp-3)", color: "var(--text-secondary)", maxWidth: 300 }}>{d?.broll || "—"}</td>
-                        <td style={{ padding: "var(--sp-3)", color: "var(--muted)", fontSize: "11px", fontStyle: "italic" }}>{d?.note || "—"}</td>
+                        <td style={{ padding: "var(--sp-3)" }}>
+                          <Badge color="warning" style={{ fontSize: "10px" }}>
+                            {d?.motion || "—"}
+                          </Badge>
+                        </td>
+                        <td style={{ padding: "var(--sp-3)", color: "var(--text-secondary)", maxWidth: 300 }}>
+                          {d?.broll || "—"}
+                        </td>
+                        <td
+                          style={{
+                            padding: "var(--sp-3)",
+                            color: "var(--muted)",
+                            fontSize: "11px",
+                            fontStyle: "italic",
+                          }}
+                        >
+                          {d?.note || "—"}
+                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -354,6 +344,86 @@ export default function DirectorPage() {
   );
 }
 
+function mockAnalyze(script) {
+  const motions = ["zoom_in", "zoom_out", "pan_left", "pan_right", "ken_burns", "static"];
+  const sentences = script
+    .replace(/\n+/g, " ")
+    .split(/[.!?]+/)
+    .map((s) => s.trim())
+    .filter((s) => s.length > 10);
+
+  const decisions = [];
+  let currentTime = 0;
+  const blockSize = 2;
+
+  for (let i = 0; i < sentences.length; i += blockSize) {
+    const block = sentences.slice(i, i + blockSize).join(". ");
+    if (!block) continue;
+
+    const duration = 3;
+    const start = currentTime;
+    const end = currentTime + duration;
+    const motion = motions[decisions.length % motions.length];
+
+    const keywords = extractKeywords(block);
+    const broll = keywords.length > 0 ? keywords.slice(0, 3).join(", ") : "contenido relevante";
+
+    decisions.push({
+      t: `${start}-${end}s`,
+      motion,
+      broll,
+      note: getEditorialNote(motion, decisions.length),
+    });
+
+    currentTime = end;
+  }
+
+  return decisions;
+}
+
+function extractKeywords(text) {
+  const stopwords = new Set([
+    "el",
+    "la",
+    "de",
+    "que",
+    "en",
+    "y",
+    "a",
+    "un",
+    "una",
+    "es",
+    "por",
+    "para",
+    "con",
+    "no",
+    "se",
+    "los",
+    "las",
+    "del",
+    "al",
+  ]);
+  return text
+    .toLowerCase()
+    .replace(/[^\w\sáéíóúñ]/g, "")
+    .split(/\s+/)
+    .filter((w) => w.length > 3 && !stopwords.has(w))
+    .slice(0, 5);
+}
+
+function getEditorialNote(motion, index) {
+  const notes = {
+    zoom_in: "Crear tensión e intimidad",
+    zoom_out: "Revelar contexto amplio",
+    pan_left: "Explorar espacio horizontal",
+    pan_right: "Seguir movimiento natural",
+    ken_burns: "Dinamismo en imagen estática",
+    static: "Dejar respirar el mensaje",
+  };
+  if (index === 0) return "Hook inicial fuerte";
+  return notes[motion] || "Mantener ritmo visual";
+}
+
 function downloadFile(content, filename, type) {
   const blob = new Blob([content], { type });
   const url = URL.createObjectURL(blob);
@@ -364,4 +434,8 @@ function downloadFile(content, filename, type) {
   a.click();
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
+}
+
+function delay(ms) {
+  return new Promise((r) => setTimeout(r, ms));
 }
