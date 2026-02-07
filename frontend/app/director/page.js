@@ -3,6 +3,7 @@
 export const dynamic = "force-dynamic";
 
 import { useState, useEffect } from "react";
+import { getAIValue } from "@/lib/aiProvidersConfig";
 import Topbar from "@/components/Topbar";
 import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
@@ -38,13 +39,17 @@ export default function DirectorPage() {
       return;
     }
 
+    const claudeKey = getAIValue("claude");
+    if (!claudeKey) {
+      showToast("Conectá Claude en Settings → Conectar IAs");
+      return;
+    }
+
     setLoading(true);
     setDecisions([]);
 
-    await delay(600);
-
     try {
-      const newDecisions = mockAnalyze(script);
+      const newDecisions = await analyzeWithClaude(script, claudeKey);
       setDecisions(newDecisions);
 
       localStorage.setItem(
@@ -122,7 +127,7 @@ export default function DirectorPage() {
         </div>
       )}
 
-      <Topbar title="Director IA" badge="v1 mock">
+      <Topbar title="Director IA" badge="v1">
         {hasDecisions && (
           <>
             <Button variant="ghost" size="sm" onClick={handleExportTXT}>
@@ -142,7 +147,7 @@ export default function DirectorPage() {
             value={script}
             onChange={(e) => setScript(e.target.value)}
             placeholder={
-              "Pegá tu guion acá...\n\nCada línea debería ser un beat/escena del video.\nEl Director va a analizar el ritmo y decisiones visuales."
+              "Pegá tu guion acá...\n\nCada línea debería ser un beat/escena del video.\nClaude va a analizar el ritmo y decisiones visuales."
             }
             rows={14}
           />
@@ -174,7 +179,7 @@ export default function DirectorPage() {
             }}
           >
             <strong style={{ color: "var(--text-secondary)" }}>Tip:</strong> El Director analiza tu guion
-            y genera decisiones editoriales: motions, b-roll, notas. Pensado para editores humanos.
+            con Claude y genera decisiones editoriales: motions, b-roll, notas. Pensado para editores humanos.
           </div>
         </Card>
 
@@ -201,7 +206,7 @@ export default function DirectorPage() {
                 }}
               />
               <span style={{ fontSize: "13px", fontWeight: 600, color: "var(--text-secondary)" }}>
-                Analizando el guion...
+                Claude analizando el guion...
               </span>
               <span style={{ fontSize: "11px", color: "var(--dim)" }}>Generando decisiones editoriales</span>
             </div>
@@ -344,84 +349,43 @@ export default function DirectorPage() {
   );
 }
 
-function mockAnalyze(script) {
-  const motions = ["zoom_in", "zoom_out", "pan_left", "pan_right", "ken_burns", "static"];
-  const sentences = script
-    .replace(/\n+/g, " ")
-    .split(/[.!?]+/)
-    .map((s) => s.trim())
-    .filter((s) => s.length > 10);
+async function analyzeWithClaude(script, apiKey) {
+  const systemPrompt = `Sos un director de shorts/reels. Analizá el guion y devolvé SOLO un array JSON (sin markdown).
 
-  const decisions = [];
-  let currentTime = 0;
-  const blockSize = 2;
+Formato: [{ "t": "0-3s", "motion": "zoom_in", "broll": "persona con celular de noche", "note": "hook fuerte" }]
 
-  for (let i = 0; i < sentences.length; i += blockSize) {
-    const block = sentences.slice(i, i + blockSize).join(". ");
-    if (!block) continue;
+Motions: zoom_in, zoom_out, pan_left, pan_right, ken_burns, static
+B-roll: específico y buscable
+Note: por qué funciona editorialmente`;
 
-    const duration = 3;
-    const start = currentTime;
-    const end = currentTime + duration;
-    const motion = motions[decisions.length % motions.length];
+  const res = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-api-key": apiKey,
+      "anthropic-version": "2023-06-01",
+    },
+    body: JSON.stringify({
+      model: "claude-sonnet-4-20250514",
+      max_tokens: 4096,
+      system: systemPrompt,
+      messages: [{ role: "user", content: script }],
+    }),
+  });
 
-    const keywords = extractKeywords(block);
-    const broll = keywords.length > 0 ? keywords.slice(0, 3).join(", ") : "contenido relevante";
+  if (!res.ok) throw new Error(`Claude error ${res.status}`);
 
-    decisions.push({
-      t: `${start}-${end}s`,
-      motion,
-      broll,
-      note: getEditorialNote(motion, decisions.length),
-    });
+  const data = await res.json();
+  const content = data.content?.[0]?.text;
+  if (!content) throw new Error("Sin respuesta de Claude");
 
-    currentTime = end;
-  }
+  const jsonMatch = content.match(/\[[\s\S]*\]/);
+  if (!jsonMatch) throw new Error("Claude no devolvió JSON");
+
+  const decisions = JSON.parse(jsonMatch[0]);
+  if (!Array.isArray(decisions) || !decisions.length) throw new Error("JSON inválido");
 
   return decisions;
-}
-
-function extractKeywords(text) {
-  const stopwords = new Set([
-    "el",
-    "la",
-    "de",
-    "que",
-    "en",
-    "y",
-    "a",
-    "un",
-    "una",
-    "es",
-    "por",
-    "para",
-    "con",
-    "no",
-    "se",
-    "los",
-    "las",
-    "del",
-    "al",
-  ]);
-  return text
-    .toLowerCase()
-    .replace(/[^\w\sáéíóúñ]/g, "")
-    .split(/\s+/)
-    .filter((w) => w.length > 3 && !stopwords.has(w))
-    .slice(0, 5);
-}
-
-function getEditorialNote(motion, index) {
-  const notes = {
-    zoom_in: "Crear tensión e intimidad",
-    zoom_out: "Revelar contexto amplio",
-    pan_left: "Explorar espacio horizontal",
-    pan_right: "Seguir movimiento natural",
-    ken_burns: "Dinamismo en imagen estática",
-    static: "Dejar respirar el mensaje",
-  };
-  if (index === 0) return "Hook inicial fuerte";
-  return notes[motion] || "Mantener ritmo visual";
 }
 
 function downloadFile(content, filename, type) {
@@ -434,8 +398,4 @@ function downloadFile(content, filename, type) {
   a.click();
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
-}
-
-function delay(ms) {
-  return new Promise((r) => setTimeout(r, ms));
 }
