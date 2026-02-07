@@ -11,11 +11,18 @@ import Badge from "@/components/ui/Badge";
 import Textarea from "@/components/ui/Textarea";
 import EmptyState from "@/components/ui/EmptyState";
 
+const PRESETS = [
+  { id: "epic", label: "Short Épico" },
+  { id: "educational", label: "Educativo" },
+  { id: "calm", label: "Storytelling Calmado" },
+];
+
 export default function DirectorPage() {
   const [script, setScript] = useState("");
   const [decisions, setDecisions] = useState([]);
   const [loading, setLoading] = useState(false);
   const [toast, setToast] = useState(null);
+  const [preset, setPreset] = useState("epic");
 
   function showToast(msg) {
     setToast(msg);
@@ -29,6 +36,7 @@ export default function DirectorPage() {
         const parsed = JSON.parse(saved);
         setScript(parsed?.script || "");
         setDecisions(Array.isArray(parsed?.decisions) ? parsed.decisions : []);
+        setPreset(parsed?.preset || "epic");
       }
     } catch {}
   }, []);
@@ -49,12 +57,13 @@ export default function DirectorPage() {
     setDecisions([]);
 
     try {
-      const newDecisions = await analyzeWithClaude(script, claudeKey);
-      setDecisions(newDecisions);
+      const rawDecisions = await analyzeWithClaude(script, claudeKey);
+      const processedDecisions = applyPreset(rawDecisions, preset);
+      setDecisions(processedDecisions);
 
       localStorage.setItem(
         "director_last_analysis",
-        JSON.stringify({ script, decisions: newDecisions })
+        JSON.stringify({ script, decisions: processedDecisions, preset })
       );
 
       showToast("Análisis completado");
@@ -152,6 +161,31 @@ export default function DirectorPage() {
             rows={14}
           />
 
+          <div>
+            <div
+              style={{
+                fontSize: "10px",
+                fontWeight: 700,
+                color: "var(--dim)",
+                textTransform: "uppercase",
+                letterSpacing: "0.08em",
+                marginBottom: "var(--sp-2)",
+              }}
+            >
+              Preset editorial
+            </div>
+            <div style={{ display: "flex", gap: "var(--sp-2)" }}>
+              {PRESETS.map((p) => (
+                <PresetChip
+                  key={p.id}
+                  active={preset === p.id}
+                  onClick={() => setPreset(p.id)}
+                  label={p.label}
+                />
+              ))}
+            </div>
+          </div>
+
           <Button
             variant="primary"
             size="lg"
@@ -179,7 +213,7 @@ export default function DirectorPage() {
             }}
           >
             <strong style={{ color: "var(--text-secondary)" }}>Tip:</strong> El Director analiza tu guion
-            con Claude y genera decisiones editoriales: motions, b-roll, notas. Pensado para editores humanos.
+            con Claude y aplica el preset editorial seleccionado.
           </div>
         </Card>
 
@@ -349,6 +383,29 @@ export default function DirectorPage() {
   );
 }
 
+function PresetChip({ active, onClick, label }) {
+  return (
+    <div
+      onClick={onClick}
+      style={{
+        flex: 1,
+        padding: "var(--sp-2) var(--sp-3)",
+        textAlign: "center",
+        cursor: "pointer",
+        background: active ? "var(--accent-muted)" : "var(--panel-2)",
+        border: active ? "1px solid var(--accent-border)" : "1px solid var(--border)",
+        borderRadius: "var(--radius-md)",
+        fontSize: "11px",
+        fontWeight: 600,
+        color: active ? "var(--accent)" : "var(--text-secondary)",
+        transition: "all var(--transition-fast)",
+      }}
+    >
+      {label}
+    </div>
+  );
+}
+
 async function analyzeWithClaude(script, apiKey) {
   const systemPrompt = `Sos un director de shorts/reels. Analizá el guion y devolvé SOLO un array JSON (sin markdown).
 
@@ -386,6 +443,32 @@ Note: por qué funciona editorialmente`;
   if (!Array.isArray(decisions) || !decisions.length) throw new Error("JSON inválido");
 
   return decisions;
+}
+
+function applyPreset(decisions, preset) {
+  const presetConfig = {
+    epic: {
+      motions: { zoom_out: "zoom_in", pan_left: "zoom_in", pan_right: "zoom_in", static: "ken_burns" },
+      notePrefix: "Impacto",
+    },
+    educational: {
+      motions: { zoom_in: "pan_left", zoom_out: "pan_right", static: "ken_burns" },
+      notePrefix: "Explicativo",
+    },
+    calm: {
+      motions: { zoom_in: "ken_burns", zoom_out: "static", pan_left: "ken_burns", pan_right: "static" },
+      notePrefix: "Reflexivo",
+    },
+  };
+
+  const config = presetConfig[preset];
+  if (!config) return decisions;
+
+  return decisions.map((d) => {
+    const newMotion = config.motions[d.motion] || d.motion;
+    const newNote = `${config.notePrefix} — ${d.note}`;
+    return { ...d, motion: newMotion, note: newNote };
+  });
 }
 
 function downloadFile(content, filename, type) {
