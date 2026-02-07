@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import Button from "@/components/ui/Button";
 import Card from "@/components/ui/Card";
 import Badge from "@/components/ui/Badge";
@@ -43,8 +43,26 @@ export default function StudioPage() {
     [30, 60, 90].includes(state.studio.duration) ? "" : String(state.studio.duration)
   );
   const [batchRunning, setBatchRunning] = useState(false);
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [source, setSource] = useState(null);
+  const importRef = useRef(null);
+  const loadedRef = useRef(false);
 
   const output = state.studio.output;
+
+  // Load project from URL param
+  useEffect(() => {
+    if (loadedRef.current) return;
+    const params = new URLSearchParams(window.location.search);
+    const id = params.get("id");
+    if (!id) return;
+    const project = state.projects.find((p) => p.id === Number(id));
+    if (project && project.type === "studio" && project.data) {
+      if (project.data.config) dispatch({ type: "SET_STUDIO_CONFIG", payload: project.data.config });
+      if (project.data.output) dispatch({ type: "SET_STUDIO_OUTPUT", payload: project.data.output });
+      loadedRef.current = true;
+    }
+  }, [state.projects]);
 
   // --- Config helpers ---
 
@@ -71,17 +89,40 @@ export default function StudioPage() {
 
   // --- Generate ---
 
-  function handleGenerate() {
-    const config = {
-      topic: state.studio.topic,
-      mode: state.studio.mode,
-      duration: state.studio.duration,
-      audience: state.studio.audience,
-      hasCTA: state.studio.hasCTA,
-    };
-    const result = generateStudioOutput(config);
-    dispatch({ type: "SET_STUDIO_OUTPUT", payload: result });
-    setOutputTab("script");
+  async function handleGenerate() {
+    setIsGenerating(true);
+    setSource(null);
+    try {
+      const res = await fetch("/api/studio/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          topic: state.studio.topic,
+          mode: state.studio.mode,
+          duration: state.studio.duration,
+          audience: state.studio.audience,
+          ctaEnabled: state.studio.hasCTA,
+        }),
+      });
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+      dispatch({ type: "SET_STUDIO_OUTPUT", payload: data.output });
+      setSource(data.source);
+      setOutputTab("script");
+    } catch {
+      const result = generateStudioOutput({
+        topic: state.studio.topic,
+        mode: state.studio.mode,
+        duration: state.studio.duration,
+        audience: state.studio.audience,
+        hasCTA: state.studio.hasCTA,
+      });
+      dispatch({ type: "SET_STUDIO_OUTPUT", payload: result });
+      setSource("mock");
+      setOutputTab("script");
+    } finally {
+      setIsGenerating(false);
+    }
   }
 
   // --- Batch ---
@@ -91,44 +132,39 @@ export default function StudioPage() {
     dispatch({ type: "STUDIO_ADD_BATCH", payload: state.studio.topic.trim() });
   }
 
-  function handleSimulateBatch() {
+  async function handleSimulateBatch() {
     const pending = state.studio.batch.filter((j) => j.status === "pending");
     if (pending.length === 0 || batchRunning) return;
     setBatchRunning(true);
 
-    pending.forEach((job, idx) => {
-      // Set to running
-      setTimeout(() => {
-        dispatch({ type: "STUDIO_UPDATE_BATCH", payload: { id: job.id, status: "running" } });
-      }, idx * 1200);
-
-      // Set to done
-      setTimeout(() => {
-        try {
-          const jobOutput = generateStudioOutput({
+    for (const job of pending) {
+      dispatch({ type: "STUDIO_UPDATE_BATCH", payload: { id: job.id, status: "running" } });
+      try {
+        const res = await fetch("/api/studio/generate", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
             topic: job.topic,
             mode: state.studio.mode,
             duration: state.studio.duration,
             audience: state.studio.audience,
-            hasCTA: state.studio.hasCTA,
-          });
-          dispatch({
-            type: "STUDIO_UPDATE_BATCH",
-            payload: { id: job.id, status: "done", output: jobOutput },
-          });
-        } catch {
-          dispatch({
-            type: "STUDIO_UPDATE_BATCH",
-            payload: { id: job.id, status: "error" },
-          });
-        }
-
-        // If last job, unlock button
-        if (idx === pending.length - 1) {
-          setBatchRunning(false);
-        }
-      }, idx * 1200 + 1000);
-    });
+            ctaEnabled: state.studio.hasCTA,
+          }),
+        });
+        const data = await res.json();
+        if (data.error) throw new Error(data.error);
+        dispatch({
+          type: "STUDIO_UPDATE_BATCH",
+          payload: { id: job.id, status: "done", output: data.output },
+        });
+      } catch {
+        dispatch({
+          type: "STUDIO_UPDATE_BATCH",
+          payload: { id: job.id, status: "error" },
+        });
+      }
+    }
+    setBatchRunning(false);
   }
 
   function handleClearCompleted() {
@@ -174,6 +210,33 @@ export default function StudioPage() {
     setOutputTab("script");
     setDurationMode(60);
     setCustomDuration("");
+    setSource(null);
+  }
+
+  // --- Import ---
+
+  function handleImportFile(e) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      try {
+        const data = JSON.parse(ev.target.result);
+        const output = data.output || (data.script ? { script: data.script, prompts: data.prompts || [], casting: data.casting || [], metadata: data.metadata || {} } : null);
+        if (output) {
+          dispatch({ type: "SET_STUDIO_OUTPUT", payload: output });
+          if (data.project?.topic || data.topic) {
+            dispatch({ type: "SET_STUDIO_CONFIG", payload: { topic: data.project?.topic || data.topic || "" } });
+          }
+          setSource("import");
+          setOutputTab("script");
+        }
+      } catch {
+        // Invalid JSON
+      }
+    };
+    reader.readAsText(file);
+    e.target.value = "";
   }
 
   // --- Helpers ---
@@ -409,11 +472,11 @@ export default function StudioPage() {
           <Button
             variant="primary"
             size="lg"
-            disabled={!state.studio.topic.trim()}
+            disabled={!state.studio.topic.trim() || isGenerating}
             onClick={handleGenerate}
             style={{ width: "100%", marginTop: "var(--sp-2)" }}
           >
-            Generar video
+            {isGenerating ? "Generando..." : "Generar video"}
           </Button>
 
           {/* Config summary */}
@@ -482,6 +545,20 @@ export default function StudioPage() {
                 active={outputTab}
                 onChange={setOutputTab}
               />
+
+              {source && (
+                <div style={{ display: "flex", alignItems: "center", gap: "var(--sp-2)", marginBottom: "var(--sp-1)" }}>
+                  <span style={{ fontSize: "10px", fontFamily: "var(--font-body)", color: "var(--dim)" }}>
+                    Generado con
+                  </span>
+                  <Badge
+                    color={source === "mock" || source === "import" ? "var(--dim)" : "var(--success)"}
+                    style={{ fontSize: "9px", padding: "1px 7px" }}
+                  >
+                    {source.toUpperCase()}
+                  </Badge>
+                </div>
+              )}
 
               {/* ---- Tab: Script ---- */}
               {outputTab === "script" && (
@@ -842,6 +919,16 @@ export default function StudioPage() {
                 <Button variant="secondary" size="sm" onClick={handleExportJSON}>
                   Export JSON
                 </Button>
+                <Button variant="secondary" size="sm" onClick={() => importRef.current?.click()}>
+                  Import JSON
+                </Button>
+                <input
+                  ref={importRef}
+                  type="file"
+                  accept=".json"
+                  onChange={handleImportFile}
+                  style={{ display: "none" }}
+                />
                 <Button variant="primary" size="sm" onClick={handleSaveProject}>
                   Guardar proyecto
                 </Button>

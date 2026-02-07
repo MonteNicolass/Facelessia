@@ -244,7 +244,8 @@ export default function DashboardPage() {
                       }}
                     >
                       <div style={{ minWidth: 0, flex: 1 }}>
-                        <div
+                        <Link
+                          href={`/${project.type === "studio" ? "studio" : "director"}?id=${project.id}`}
                           style={{
                             fontSize: "13px",
                             fontFamily: "var(--font-body)",
@@ -253,10 +254,12 @@ export default function DashboardPage() {
                             overflow: "hidden",
                             textOverflow: "ellipsis",
                             whiteSpace: "nowrap",
+                            textDecoration: "none",
+                            display: "block",
                           }}
                         >
                           {project.name}
-                        </div>
+                        </Link>
                         <div
                           style={{
                             fontSize: "11px",

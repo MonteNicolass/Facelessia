@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import Button from "@/components/ui/Button";
 import Card from "@/components/ui/Card";
 import Badge from "@/components/ui/Badge";
@@ -24,30 +24,78 @@ const MOTION_PRESETS = [
 export default function DirectorPage() {
   const { state, dispatch } = useStore();
   const [analyzeNotice, setAnalyzeNotice] = useState(null);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [source, setSource] = useState(null);
+  const importRef = useRef(null);
+  const loadedRef = useRef(false);
 
   const segments = state.editMap.segments || [];
   const selectedSeg = segments.find((s) => s.id === state.editMap.selectedId) || null;
   const hasSegments = segments.length > 0;
 
+  // Load project from URL param
+  useEffect(() => {
+    if (loadedRef.current) return;
+    const params = new URLSearchParams(window.location.search);
+    const id = params.get("id");
+    if (!id) return;
+    const project = state.projects.find((p) => p.id === Number(id));
+    if (project && project.type === "director" && project.data?.editMap) {
+      dispatch({ type: "SET_EDITMAP_RAW", payload: project.data.editMap.raw || "" });
+      dispatch({ type: "SET_EDITMAP_FORMAT", payload: project.data.editMap.format || "short" });
+      dispatch({ type: "SET_EDITMAP_SEGMENTS", payload: project.data.editMap.segments || [] });
+      if (project.data.editMap.segments?.length > 0) {
+        dispatch({ type: "SET_EDITMAP_SELECTED", payload: project.data.editMap.segments[0].id });
+      }
+      loadedRef.current = true;
+    }
+  }, [state.projects]);
+
   // ── Actions ──
 
-  function handleAnalyze() {
+  async function handleAnalyze() {
     const raw = (state.editMap.raw || "").trim();
     if (!raw) return;
+    setIsAnalyzing(true);
+    setSource(null);
     try {
       const fmt = state.editMap.format || "short";
       const dur = fmt === "long" ? 180 : fmt === "reels" ? 30 : 60;
-      const segs = parseToSegments(raw, fmt, dur);
-      const enriched = generateEditMap(segs);
+      const res = await fetch("/api/director/analyze", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ scriptText: raw, format: fmt, targetDurationSec: dur }),
+      });
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+      const enriched = data.segments || [];
       dispatch({ type: "SET_EDITMAP_SEGMENTS", payload: enriched });
+      setSource(data.source);
       if (enriched.length > 0) {
         dispatch({ type: "SET_EDITMAP_SELECTED", payload: enriched[0].id });
-        setAnalyzeNotice({ ok: true, text: `${enriched.length} segmentos analizados` });
+        setAnalyzeNotice({ ok: true, text: `${enriched.length} segmentos analizados (${data.source})` });
       } else {
         setAnalyzeNotice({ ok: false, text: "No se detectaron segmentos. Verifica el texto." });
       }
     } catch {
-      setAnalyzeNotice({ ok: false, text: "Error al analizar el texto." });
+      try {
+        const fmt = state.editMap.format || "short";
+        const dur = fmt === "long" ? 180 : fmt === "reels" ? 30 : 60;
+        const segs = parseToSegments(raw, fmt, dur);
+        const enriched = generateEditMap(segs);
+        dispatch({ type: "SET_EDITMAP_SEGMENTS", payload: enriched });
+        setSource("mock");
+        if (enriched.length > 0) {
+          dispatch({ type: "SET_EDITMAP_SELECTED", payload: enriched[0].id });
+          setAnalyzeNotice({ ok: true, text: `${enriched.length} segmentos analizados (mock)` });
+        } else {
+          setAnalyzeNotice({ ok: false, text: "No se detectaron segmentos." });
+        }
+      } catch {
+        setAnalyzeNotice({ ok: false, text: "Error al analizar el texto." });
+      }
+    } finally {
+      setIsAnalyzing(false);
     }
   }
 
@@ -73,6 +121,35 @@ export default function DirectorPage() {
   function handleReset() {
     dispatch({ type: "EDITMAP_RESET" });
     setAnalyzeNotice(null);
+    setSource(null);
+  }
+
+  function handleImportFile(e) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      try {
+        const data = JSON.parse(ev.target.result);
+        if (data.segments && Array.isArray(data.segments)) {
+          dispatch({ type: "SET_EDITMAP_SEGMENTS", payload: data.segments });
+          if (data.segments.length > 0) {
+            dispatch({ type: "SET_EDITMAP_SELECTED", payload: data.segments[0].id });
+          }
+          setSource("import");
+          setAnalyzeNotice({ ok: true, text: `${data.segments.length} segmentos importados` });
+        } else if (data.script?.scenes || data.output?.script?.scenes) {
+          const scenes = data.script?.scenes || data.output?.script?.scenes || [];
+          const raw = scenes.map((s) => s.narration).join("\n\n");
+          dispatch({ type: "SET_EDITMAP_RAW", payload: raw });
+          setAnalyzeNotice({ ok: true, text: `Script importado (${scenes.length} escenas). Presiona Analizar.` });
+        }
+      } catch {
+        setAnalyzeNotice({ ok: false, text: "Archivo JSON invalido." });
+      }
+    };
+    reader.readAsText(file);
+    e.target.value = "";
   }
 
   function updateSeg(id, changes) {
@@ -263,10 +340,10 @@ export default function DirectorPage() {
           <Button
             variant="primary"
             onClick={handleAnalyze}
-            disabled={!(state.editMap.raw || "").trim()}
+            disabled={!(state.editMap.raw || "").trim() || isAnalyzing}
             style={{ width: "100%" }}
           >
-            Analizar y generar Edit Map
+            {isAnalyzing ? "Analizando..." : "Analizar y generar Edit Map"}
           </Button>
 
           {/* Feedback */}
@@ -283,6 +360,17 @@ export default function DirectorPage() {
               color="var(--accent)"
               style={{ padding: "var(--sp-4) var(--sp-5)" }}
             >
+              {source && (
+                <div style={{ display: "flex", alignItems: "center", gap: "var(--sp-2)", marginBottom: "var(--sp-3)" }}>
+                  <span style={{ fontSize: "10px", fontFamily: "var(--font-body)", color: "var(--dim)" }}>Fuente:</span>
+                  <Badge
+                    color={source === "mock" || source === "import" ? "var(--dim)" : "var(--success)"}
+                    style={{ fontSize: "9px", padding: "1px 7px" }}
+                  >
+                    {source.toUpperCase()}
+                  </Badge>
+                </div>
+              )}
               <div
                 style={{
                   display: "grid",
@@ -738,6 +826,16 @@ export default function DirectorPage() {
           <Button variant="primary" onClick={handleExport}>
             Export Edit Map JSON
           </Button>
+          <Button variant="secondary" onClick={() => importRef.current?.click()}>
+            Import JSON
+          </Button>
+          <input
+            ref={importRef}
+            type="file"
+            accept=".json"
+            onChange={handleImportFile}
+            style={{ display: "none" }}
+          />
           <Button variant="secondary" onClick={handleSave}>
             Guardar proyecto
           </Button>
