@@ -1,0 +1,21 @@
+# Entorno virtual
+.venv/
+
+# Variables de entorno
+.env
+
+# Archivos de Python
+__pycache__/
+*.pyc
+
+# Outputs de video
+outputs/
+assets/
+
+# Node
+node_modules/
+.next/
+package-lock.json
+
+# Windows junk
+nul
