@@ -3,75 +3,66 @@
 import { createContext, useContext, useReducer, useEffect } from "react";
 
 const STORAGE_KEY = "celeste-store";
-const STORAGE_VERSION = 5;
+const STORAGE_VERSION = 6;
 
 export const initialState = {
-  /* Generator pipeline */
-  generator: {
-    step: 0, // 0=input, 1=script, 2=assets, 3=assemble, 4=output
+  /* AI Video Studio */
+  studio: {
     config: {
       topic: "",
-      mode: "short_epico",
-      duration: 60,
-      audience: "",
-      hasCTA: true,
+      duration: "60",
+      style: "epica",
+      language: "es",
     },
-    script: null,
-    assets: null,
-    assembleProgress: 0,
     output: null,
+    loading: false,
   },
 
-  /* Director */
+  /* Editing Director */
   director: {
     raw: "",
-    format: "short",
-    duration: 60,
+    mode: "short",
     segments: [],
     selectedId: null,
   },
 
-  /* Saved runs */
-  runs: [],
-
   /* Settings */
   settings: {
-    openaiApiKey: "",
-    anthropicApiKey: "",
+    wpm: 160,
+    brollDensity: "medium",
+    motionIntensity: "medium",
+    language: "es",
+    autoIntro: true,
+    seriesMode: false,
   },
+
+  /* Saved projects */
+  projects: [],
 };
 
 function reducer(state, action) {
   switch (action.type) {
-    /* --- Generator --- */
-    case "SET_GEN_STEP":
-      return { ...state, generator: { ...state.generator, step: action.payload } };
-    case "SET_GEN_CONFIG":
+    /* --- Studio --- */
+    case "SET_STUDIO_CONFIG":
       return {
         ...state,
-        generator: {
-          ...state.generator,
-          config: { ...state.generator.config, ...action.payload },
+        studio: {
+          ...state.studio,
+          config: { ...state.studio.config, ...action.payload },
         },
       };
-    case "SET_GEN_SCRIPT":
-      return { ...state, generator: { ...state.generator, script: action.payload } };
-    case "SET_GEN_ASSETS":
-      return { ...state, generator: { ...state.generator, assets: action.payload } };
-    case "SET_GEN_ASSEMBLE_PROGRESS":
-      return { ...state, generator: { ...state.generator, assembleProgress: action.payload } };
-    case "SET_GEN_OUTPUT":
-      return { ...state, generator: { ...state.generator, output: action.payload } };
-    case "GEN_RESET":
-      return { ...state, generator: initialState.generator };
+    case "SET_STUDIO_OUTPUT":
+      return { ...state, studio: { ...state.studio, output: action.payload, loading: false } };
+    case "SET_STUDIO_LOADING":
+      return { ...state, studio: { ...state.studio, loading: action.payload } };
+    case "STUDIO_RESET":
+      return { ...state, studio: initialState.studio };
 
     /* --- Director --- */
     case "SET_DIR_RAW":
       return { ...state, director: { ...state.director, raw: action.payload } };
-    case "SET_DIR_FORMAT":
-      return { ...state, director: { ...state.director, format: action.payload } };
-    case "SET_DIR_DURATION":
-      return { ...state, director: { ...state.director, duration: action.payload } };
+    case "SET_DIR_MODE":
+      return { ...state, director: { ...state.director, mode: action.payload } };
     case "SET_DIR_SEGMENTS":
       return { ...state, director: { ...state.director, segments: action.payload } };
     case "SET_DIR_SELECTED":
@@ -91,31 +82,30 @@ function reducer(state, action) {
     case "DIR_RESET":
       return { ...state, director: initialState.director };
 
-    /* --- Runs --- */
-    case "SAVE_RUN": {
-      const run = {
-        id: action.payload.id || Date.now(),
-        createdAt: new Date().toISOString(),
-        type: action.payload.type,
-        name: action.payload.name,
-        input: action.payload.input,
-        output: action.payload.output,
-      };
-      const existing = state.runs.filter((r) => r.id !== run.id);
-      return { ...state, runs: [run, ...existing].slice(0, 50) };
-    }
-    case "DELETE_RUN":
-      return { ...state, runs: state.runs.filter((r) => r.id !== action.payload) };
-
     /* --- Settings --- */
     case "SET_SETTINGS":
       return { ...state, settings: { ...state.settings, ...action.payload } };
+
+    /* --- Projects --- */
+    case "SAVE_PROJECT": {
+      const proj = {
+        id: action.payload.id || Date.now(),
+        name: action.payload.name,
+        type: action.payload.type,
+        createdAt: new Date().toISOString(),
+        data: action.payload.data,
+      };
+      const existing = state.projects.filter((p) => p.id !== proj.id);
+      return { ...state, projects: [proj, ...existing].slice(0, 30) };
+    }
+    case "DELETE_PROJECT":
+      return { ...state, projects: state.projects.filter((p) => p.id !== action.payload) };
 
     /* --- System --- */
     case "HYDRATE":
       return { ...initialState, ...action.payload };
     case "RESET":
-      return { ...initialState, settings: state.settings, runs: state.runs };
+      return { ...initialState, settings: state.settings, projects: state.projects };
 
     default:
       return state;
@@ -137,7 +127,7 @@ export function StoreProvider({ children }) {
         }
       }
     } catch {
-      // Corrupt data, ignore
+      /* corrupt data */
     }
   }, []);
 
@@ -148,7 +138,7 @@ export function StoreProvider({ children }) {
         JSON.stringify({ _v: STORAGE_VERSION, data: state })
       );
     } catch {
-      // Storage full, ignore
+      /* storage full */
     }
   }, [state]);
 

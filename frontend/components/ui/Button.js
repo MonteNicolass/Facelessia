@@ -8,6 +8,7 @@ export default function Button({
   size = "md",
   style: extraStyle,
   type = "button",
+  ...rest
 }) {
   const base = {
     fontFamily: "var(--font-body)",
@@ -15,11 +16,11 @@ export default function Button({
     border: "1px solid transparent",
     borderRadius: "var(--radius-md)",
     cursor: disabled ? "not-allowed" : "pointer",
-    transition: "all var(--transition-base)",
+    transition: "all var(--transition-fast)",
     display: "inline-flex",
     alignItems: "center",
     justifyContent: "center",
-    gap: "var(--sp-1)",
+    gap: "var(--sp-2)",
     opacity: disabled ? 0.35 : 1,
     whiteSpace: "nowrap",
     lineHeight: 1,
@@ -27,15 +28,15 @@ export default function Button({
   };
 
   const sizes = {
-    sm: { padding: "6px 12px", fontSize: "12px" },
-    md: { padding: "8px 16px", fontSize: "13px" },
-    lg: { padding: "10px 20px", fontSize: "14px" },
+    sm: { padding: "5px 10px", fontSize: "11px" },
+    md: { padding: "8px 16px", fontSize: "12px" },
+    lg: { padding: "10px 20px", fontSize: "13px" },
   };
 
   const variants = {
     primary: {
       background: "var(--accent)",
-      color: "var(--bg)",
+      color: "#fff",
       borderColor: "var(--accent)",
     },
     secondary: {
@@ -45,13 +46,13 @@ export default function Button({
     },
     ghost: {
       background: "transparent",
-      color: "var(--muted)",
+      color: "var(--text-secondary)",
       borderColor: "transparent",
     },
     danger: {
       background: "var(--danger-muted)",
       color: "var(--danger)",
-      borderColor: "var(--danger-muted)",
+      borderColor: "rgba(201,71,59,0.22)",
     },
   };
 
@@ -60,6 +61,7 @@ export default function Button({
       type={type}
       onClick={disabled ? undefined : onClick}
       disabled={disabled}
+      {...rest}
       style={{ ...base, ...sizes[size], ...variants[variant], ...extraStyle }}
     >
       {children}
