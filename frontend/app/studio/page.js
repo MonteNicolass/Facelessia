@@ -1,27 +1,38 @@
 "use client";
 
+export const dynamic = "force-dynamic";
+
 import { useState, useCallback } from "react";
-import { useRouter } from "next/navigation";
 import { useStore } from "@/lib/store";
-import { generateMockScenes, generateMockCasting } from "@/lib/mockGenerate";
-import { exportJSON } from "@/lib/exporters";
-import { fmtTime } from "@/lib/scriptParse";
+import { hasApiKeys, hasTtsKey } from "@/lib/storage";
+import { mockScript, mockEDL } from "@/lib/mock";
+import { downloadExportPack } from "@/lib/exportPack";
+import { generateSRT } from "@/lib/srt";
 import Topbar from "@/components/Topbar";
-import Panel from "@/components/Panel";
 import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
 import Badge from "@/components/ui/Badge";
+import Stepper from "@/components/ui/Stepper";
+import TimelineRow from "@/components/ui/TimelineRow";
+import EmptyState from "@/components/ui/EmptyState";
+
+const STEPS = [
+  { id: 1, label: "Idea" },
+  { id: 2, label: "Guion" },
+  { id: 3, label: "EDL" },
+  { id: 4, label: "Voz" },
+  { id: 5, label: "Export" },
+];
 
 const DURATION_OPTIONS = [
   { value: 30, label: "Short", sub: "30s" },
   { value: 60, label: "Estandar", sub: "60s" },
   { value: 90, label: "Long", sub: "90s" },
 ];
-const STYLE_OPTIONS = [
+const TONE_OPTIONS = [
   { value: "epica", label: "Epica" },
   { value: "educativo", label: "Educativo" },
-  { value: "drama", label: "Drama" },
-  { value: "tech", label: "Tech" },
+  { value: "narrativo", label: "Narrativo" },
 ];
 const LANG_OPTIONS = [
   { value: "es", label: "Espanol" },
@@ -30,63 +41,131 @@ const LANG_OPTIONS = [
 
 export default function StudioPage() {
   const { state, dispatch } = useStore();
-  const router = useRouter();
-  const { config, scenes, casting, loading } = state.studio;
-  const hasOutput = scenes.length > 0;
+  const { step, idea, script, edl, voice, loading } = state.studio;
+  const keysOk = hasApiKeys(state.settings);
+  const ttsOk = hasTtsKey(state.settings);
 
   const [toast, setToast] = useState(null);
+  const [selectedSeg, setSelectedSeg] = useState(null);
   function showToast(msg) { setToast(msg); setTimeout(() => setToast(null), 2000); }
 
-  /* ── Generate ── */
-  const handleGenerate = useCallback(() => {
-    if (!config.topic.trim()) return;
+  function goStep(n) { dispatch({ type: "SET_STUDIO_STEP", payload: n }); }
+
+  /* ── Step 2: Generate script ── */
+  const handleGenerateScript = useCallback(async () => {
+    if (!idea.topic.trim()) return;
     dispatch({ type: "SET_STUDIO_LOADING", payload: true });
-    setTimeout(() => {
-      const sc = generateMockScenes(config);
-      const ca = generateMockCasting(config);
-      dispatch({ type: "SET_STUDIO_SCENES", payload: sc });
-      dispatch({ type: "SET_STUDIO_CASTING", payload: ca });
-    }, 250);
-  }, [config, dispatch]);
 
-  /* ── Send to Director ── */
-  const handleSendToDirector = useCallback(() => {
-    if (!scenes.length) return;
-    const text = scenes
-      .map((s) => `[${fmtTime(s.start)}-${fmtTime(s.end)}] ${s.voiceover}`)
-      .join("\n");
-    dispatch({ type: "SET_DIR_RAW", payload: text });
-    router.push("/director");
-  }, [scenes, dispatch, router]);
+    try {
+      if (keysOk) {
+        const res = await fetch("/api/llm/script", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ idea, settings: state.settings }),
+        });
+        if (!res.ok) throw new Error("API error");
+        const data = await res.json();
+        dispatch({ type: "SET_STUDIO_SCRIPT", payload: data });
+      } else {
+        // Demo mode
+        await delay(400);
+        const data = mockScript(idea);
+        dispatch({ type: "SET_STUDIO_SCRIPT", payload: data });
+      }
+      dispatch({ type: "SET_STUDIO_LOADING", payload: false });
+      goStep(2);
+    } catch (err) {
+      dispatch({ type: "SET_STUDIO_LOADING", payload: false });
+      showToast("Error: " + err.message);
+    }
+  }, [idea, keysOk, state.settings, dispatch]);
 
-  /* ── Export JSON ── */
-  function handleExportJSON() {
-    exportJSON(scenes, { topic: config.topic, duration: config.duration, style: config.style });
-    showToast("JSON exportado");
+  /* ── Step 3: Generate EDL ── */
+  const handleGenerateEDL = useCallback(async () => {
+    if (!script.text) return;
+    dispatch({ type: "SET_STUDIO_LOADING", payload: true });
+
+    try {
+      if (keysOk) {
+        const res = await fetch("/api/llm/director", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ script, idea, settings: state.settings }),
+        });
+        if (!res.ok) throw new Error("API error");
+        const data = await res.json();
+        dispatch({ type: "SET_STUDIO_EDL", payload: data });
+      } else {
+        await delay(400);
+        const data = mockEDL(script, idea);
+        dispatch({ type: "SET_STUDIO_EDL", payload: data });
+      }
+      goStep(3);
+    } catch (err) {
+      dispatch({ type: "SET_STUDIO_LOADING", payload: false });
+      showToast("Error: " + err.message);
+    }
+  }, [script, idea, keysOk, state.settings, dispatch]);
+
+  /* ── Step 4: Generate voice ── */
+  const handleGenerateVoice = useCallback(async () => {
+    if (!ttsOk || !script.text) {
+      goStep(5);
+      return;
+    }
+    dispatch({ type: "SET_STUDIO_VOICE", payload: { loading: true } });
+
+    try {
+      const res = await fetch("/api/tts/elevenlabs", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: script.text, settings: state.settings }),
+      });
+      if (!res.ok) throw new Error("TTS error");
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      dispatch({ type: "SET_STUDIO_VOICE", payload: { audioUrl: url, loading: false } });
+      goStep(4);
+    } catch (err) {
+      dispatch({ type: "SET_STUDIO_VOICE", payload: { loading: false } });
+      showToast("TTS error: " + err.message);
+      goStep(5);
+    }
+  }, [ttsOk, script, state.settings, dispatch]);
+
+  /* ── Step 5: Export pack ── */
+  async function handleExportPack() {
+    try {
+      await downloadExportPack({
+        title: idea.topic || "celeste-export",
+        scriptText: script.text,
+        edl,
+        audioUrl: voice.audioUrl,
+      });
+      showToast("Export pack descargado");
+    } catch (err) {
+      showToast("Error: " + err.message);
+    }
   }
 
   /* ── Save project ── */
   function handleSave() {
     dispatch({
       type: "SAVE_PROJECT",
-      payload: { type: "studio", name: config.topic || "Studio Project", data: { config, scenes, casting } },
+      payload: {
+        mode: "studio",
+        name: idea.topic || "Studio Project",
+        data: { step, idea, script, edl, voice: { audioUrl: voice.audioUrl } },
+      },
     });
-    showToast("Guardado");
-  }
-
-  /* ── Scene inline edit ── */
-  function updateScene(id, changes) {
-    dispatch({ type: "UPDATE_STUDIO_SCENE", payload: { id, ...changes } });
+    showToast("Proyecto guardado");
   }
 
   /* ══════ RENDER ══════ */
 
   return (
-    <div style={{ position: "relative" }}>
+    <div style={{ position: "relative", maxWidth: 800 }}>
       <style>{`
-        .studio-grid { display: grid; grid-template-columns: 280px 1fr 240px; gap: var(--sp-5); align-items: start; }
-        @media (max-width: 1024px) { .studio-grid { grid-template-columns: 260px 1fr; } .studio-actions { display: none; } }
-        @media (max-width: 768px) { .studio-grid { grid-template-columns: 1fr; } .studio-actions { display: flex; } }
         @keyframes spin { to { transform: rotate(360deg); } }
         @keyframes toastIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
       `}</style>
@@ -101,208 +180,216 @@ export default function StudioPage() {
         }}>{toast}</div>
       )}
 
-      <Topbar title="AI Video Studio" badge="mock">
-        {hasOutput && <Button variant="ghost" size="sm" onClick={() => dispatch({ type: "STUDIO_RESET" })}>Nuevo</Button>}
+      <Topbar title="AI Video Studio" badge={keysOk ? "API" : "demo"}>
+        <Button variant="ghost" size="sm" onClick={() => dispatch({ type: "STUDIO_RESET" })}>Nuevo</Button>
+        {(script.text || edl) && <Button variant="ghost" size="sm" onClick={handleSave}>Guardar</Button>}
       </Topbar>
 
-      {/* ── Loading ── */}
+      {/* Stepper */}
+      <div style={{ marginBottom: "var(--sp-6)" }}>
+        <Stepper steps={STEPS} current={step} />
+      </div>
+
+      {/* Loading overlay */}
       {loading && (
-        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", minHeight: 300, gap: "var(--sp-4)" }}>
-          <div style={{ width: 40, height: 40, borderRadius: "var(--radius-full)", border: "3px solid var(--border)", borderTopColor: "var(--accent)", animation: "spin 0.8s linear infinite" }} />
-          <span style={{ fontSize: "14px", fontWeight: 600, color: "var(--text-secondary)" }}>Generando...</span>
-        </div>
-      )}
-
-      {/* ── 3-Column Grid ── */}
-      {!loading && (
-        <div className="studio-grid">
-          {/* ── LEFT: Input ── */}
-          <Panel title="Input">
-            {/* Topic */}
-            <div>
-              <Label>Tema</Label>
-              <textarea
-                rows={3}
-                value={config.topic}
-                onChange={(e) => dispatch({ type: "SET_STUDIO_CONFIG", payload: { topic: e.target.value } })}
-                placeholder="Ej: La historia oculta del Coliseo Romano"
-                style={taStyle}
-                onFocus={(e) => (e.target.style.borderColor = "var(--accent-border)")}
-                onBlur={(e) => (e.target.style.borderColor = "var(--border)")}
-              />
-            </div>
-
-            {/* Duration */}
-            <div>
-              <Label>Duracion</Label>
-              <div style={{ display: "flex", gap: "var(--sp-2)" }}>
-                {DURATION_OPTIONS.map((o) => (
-                  <Chip key={o.value} active={config.duration === o.value}
-                    onClick={() => dispatch({ type: "SET_STUDIO_CONFIG", payload: { duration: o.value } })}>
-                    <div style={{ fontSize: "12px", fontWeight: 600, color: config.duration === o.value ? "var(--accent)" : "var(--text)" }}>{o.label}</div>
-                    <div style={{ fontSize: "10px", fontFamily: "var(--font-mono)", color: config.duration === o.value ? "var(--accent)" : "var(--muted)" }}>{o.sub}</div>
-                  </Chip>
-                ))}
-              </div>
-            </div>
-
-            {/* Style */}
-            <div>
-              <Label>Estilo</Label>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "var(--sp-2)" }}>
-                {STYLE_OPTIONS.map((o) => (
-                  <Chip key={o.value} active={config.style === o.value}
-                    onClick={() => dispatch({ type: "SET_STUDIO_CONFIG", payload: { style: o.value } })}>
-                    <div style={{ fontSize: "12px", fontWeight: 600, color: config.style === o.value ? "var(--accent)" : "var(--text)" }}>{o.label}</div>
-                  </Chip>
-                ))}
-              </div>
-            </div>
-
-            {/* Language */}
-            <div>
-              <Label>Idioma</Label>
-              <div style={{ display: "flex", gap: "var(--sp-2)" }}>
-                {LANG_OPTIONS.map((o) => (
-                  <Chip key={o.value} active={config.language === o.value}
-                    onClick={() => dispatch({ type: "SET_STUDIO_CONFIG", payload: { language: o.value } })}>
-                    <div style={{ fontSize: "12px", fontWeight: 600, color: config.language === o.value ? "var(--accent)" : "var(--text)" }}>{o.label}</div>
-                  </Chip>
-                ))}
-              </div>
-            </div>
-
-            <Button variant="primary" size="lg" onClick={handleGenerate} disabled={loading || !config.topic.trim()} style={{ width: "100%" }}>
-              Generar Paquete
-            </Button>
-          </Panel>
-
-          {/* ── CENTER: Outputs ── */}
-          <div style={{ display: "flex", flexDirection: "column", gap: "var(--sp-4)", minWidth: 0 }}>
-            {!hasOutput ? (
-              <div style={{ padding: "var(--sp-10) var(--sp-6)", textAlign: "center", border: "1px dashed var(--border)", borderRadius: "var(--radius-lg)", background: "var(--bg-raised)" }}>
-                <div style={{ fontSize: "14px", fontWeight: 600, color: "var(--text-secondary)", marginBottom: "var(--sp-2)" }}>Sin output</div>
-                <div style={{ fontSize: "12px", color: "var(--muted)" }}>Configura y genera para ver escenas, prompts y casting</div>
-              </div>
-            ) : (
-              <>
-                {/* Summary */}
-                <div style={{ display: "flex", alignItems: "center", gap: "var(--sp-3)", padding: "var(--sp-2) var(--sp-4)", background: "var(--panel)", borderRadius: "var(--radius-md)", border: "1px solid var(--border-subtle)" }}>
-                  <span style={{ fontFamily: "var(--font-mono)", fontSize: "12px", color: "var(--text-secondary)", fontWeight: 600 }}>{scenes.length} escenas</span>
-                  <span style={{ color: "var(--dim)", fontSize: "10px" }}>&middot;</span>
-                  <span style={{ fontFamily: "var(--font-mono)", fontSize: "12px", color: "var(--accent)" }}>{config.duration}s</span>
-                  <span style={{ color: "var(--dim)", fontSize: "10px" }}>&middot;</span>
-                  <span style={{ fontFamily: "var(--font-mono)", fontSize: "12px", color: "var(--muted)" }}>{config.style}</span>
-                </div>
-
-                {/* Scene list */}
-                <div style={{ display: "flex", flexDirection: "column", gap: "var(--sp-2)", maxHeight: "calc(100vh - 200px)", overflowY: "auto", paddingRight: "var(--sp-1)" }}>
-                  {scenes.map((sc) => (
-                    <SceneCard key={sc.id} scene={sc} onUpdate={(changes) => updateScene(sc.id, changes)} />
-                  ))}
-                </div>
-
-                {/* Casting */}
-                {casting.length > 0 && (
-                  <div>
-                    <div style={{ fontSize: "10px", fontWeight: 700, fontFamily: "var(--font-mono)", color: "var(--dim)", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: "var(--sp-2)" }}>
-                      Casting
-                    </div>
-                    <div style={{ display: "flex", gap: "var(--sp-2)", flexWrap: "wrap" }}>
-                      {casting.map((c) => (
-                        <Card key={c.id} style={{ padding: "var(--sp-2) var(--sp-3)", flex: "1 1 200px" }}>
-                          <div style={{ fontSize: "12px", fontWeight: 600, color: "var(--text)" }}>{c.name}</div>
-                          <div style={{ fontSize: "10px", color: "var(--muted)" }}>{c.role} — {c.description}</div>
-                        </Card>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </>
-            )}
-          </div>
-
-          {/* ── RIGHT: Actions ── */}
-          <div className="studio-actions" style={{ display: "flex", flexDirection: "column", gap: "var(--sp-3)" }}>
-            {hasOutput && (
-              <Panel title="Acciones">
-                <Button variant="primary" size="md" onClick={handleSendToDirector} style={{ width: "100%" }}>
-                  Enviar a Director Pro
-                </Button>
-                <Button variant="secondary" size="md" onClick={handleExportJSON} style={{ width: "100%" }}>
-                  Export JSON
-                </Button>
-                <Button variant="ghost" size="sm" onClick={handleSave} style={{ width: "100%" }}>
-                  Guardar Proyecto
-                </Button>
-                <Button variant="ghost" size="sm" onClick={() => {
-                  navigator.clipboard.writeText(JSON.stringify(scenes, null, 2)).then(() => showToast("Copiado"));
-                }} style={{ width: "100%" }}>
-                  Copiar JSON
-                </Button>
-              </Panel>
-            )}
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-/* ── Scene Card ── */
-function SceneCard({ scene, onUpdate }) {
-  const [expanded, setExpanded] = useState(false);
-  const sc = scene;
-  return (
-    <div>
-      <Card
-        onClick={() => setExpanded(!expanded)}
-        style={{
-          cursor: "pointer", padding: "var(--sp-3) var(--sp-4)",
-          borderLeft: expanded ? "3px solid var(--accent)" : "3px solid var(--border)",
-          borderRadius: expanded ? "var(--radius-md) var(--radius-md) 0 0" : "var(--radius-md)",
-          background: expanded ? "var(--bg-raised)" : undefined,
-        }}
-      >
-        <div style={{ display: "flex", alignItems: "center", gap: "var(--sp-2)", marginBottom: "var(--sp-2)", flexWrap: "wrap" }}>
-          <Badge color="accent">#{sc.id}</Badge>
-          <span style={{ fontFamily: "var(--font-mono)", fontSize: "11px", color: "var(--text-secondary)", fontWeight: 600 }}>
-            {fmtTime(sc.start)}&ndash;{fmtTime(sc.end)}
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", minHeight: 200, gap: "var(--sp-4)" }}>
+          <div style={{ width: 36, height: 36, borderRadius: "var(--radius-full)", border: "3px solid var(--border)", borderTopColor: "var(--accent)", animation: "spin 0.8s linear infinite" }} />
+          <span style={{ fontSize: "13px", fontWeight: 600, color: "var(--text-secondary)" }}>
+            {step <= 2 ? "Generando guion..." : step === 3 ? "Generando EDL..." : "Generando voz..."}
           </span>
-          <Badge color="warning">{sc.motion_suggestion}</Badge>
-          {sc.sfx_suggestion && sc.sfx_suggestion !== "none" && <Badge color="success">{sc.sfx_suggestion}</Badge>}
+          {!keysOk && <span style={{ fontSize: "11px", color: "var(--dim)" }}>modo demo</span>}
         </div>
-        <p style={{ fontSize: "12px", color: "var(--text-secondary)", lineHeight: 1.55, margin: 0 }}>
-          {sc.voiceover.length > 140 ? sc.voiceover.slice(0, 140) + "..." : sc.voiceover}
-        </p>
-        {sc.broll_query && (
-          <div style={{ fontSize: "11px", color: "var(--muted)", marginTop: "var(--sp-1)" }}>
-            <span style={{ fontWeight: 700, color: "var(--pink)", fontSize: "10px", textTransform: "uppercase", letterSpacing: "0.05em", marginRight: "var(--sp-2)" }}>B-ROLL:</span>
-            <span style={{ fontStyle: "italic" }}>{sc.broll_query}</span>
-          </div>
-        )}
-        {sc.on_screen_text && (
-          <div style={{ marginTop: "var(--sp-1)", fontFamily: "var(--font-mono)", fontSize: "10px", fontWeight: 600, color: "var(--warning)" }}>
-            OST: {sc.on_screen_text}
-          </div>
-        )}
-      </Card>
+      )}
 
-      {expanded && (
-        <div style={{ padding: "var(--sp-4)", background: "var(--panel)", border: "1px solid var(--accent-border)", borderTop: "none", borderRadius: "0 0 var(--radius-md) var(--radius-md)", display: "flex", flexDirection: "column", gap: "var(--sp-3)" }}>
-          <Field label="Voiceover">
-            <textarea value={sc.voiceover} onChange={(e) => onUpdate({ voiceover: e.target.value })} rows={3} style={taStyle} />
-          </Field>
-          <Field label="Visual Prompt">
-            <textarea value={sc.visual_prompt} onChange={(e) => onUpdate({ visual_prompt: e.target.value })} rows={2} style={taStyle} />
-          </Field>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "var(--sp-3)" }}>
-            <Field label="B-Roll Query">
-              <input type="text" value={sc.broll_query} onChange={(e) => onUpdate({ broll_query: e.target.value })} style={inpStyle} />
-            </Field>
-            <Field label="On-Screen Text">
-              <input type="text" value={sc.on_screen_text || ""} onChange={(e) => onUpdate({ on_screen_text: e.target.value })} style={inpStyle} />
-            </Field>
+      {/* ── STEP 1: Idea ── */}
+      {!loading && step === 1 && (
+        <Card style={{ display: "flex", flexDirection: "column", gap: "var(--sp-4)" }}>
+          <div>
+            <Label>Tema del video</Label>
+            <textarea
+              rows={3}
+              value={idea.topic}
+              onChange={(e) => dispatch({ type: "SET_STUDIO_IDEA", payload: { topic: e.target.value } })}
+              placeholder="Ej: La historia oculta del Coliseo Romano"
+              style={taStyle}
+              onFocus={(e) => (e.target.style.borderColor = "var(--accent-border)")}
+              onBlur={(e) => (e.target.style.borderColor = "var(--border)")}
+            />
+          </div>
+
+          <div>
+            <Label>Duracion</Label>
+            <div style={{ display: "flex", gap: "var(--sp-2)" }}>
+              {DURATION_OPTIONS.map((o) => (
+                <Chip key={o.value} active={idea.duration === o.value}
+                  onClick={() => dispatch({ type: "SET_STUDIO_IDEA", payload: { duration: o.value } })}>
+                  <div style={{ fontSize: "12px", fontWeight: 600, color: idea.duration === o.value ? "var(--accent)" : "var(--text)" }}>{o.label}</div>
+                  <div style={{ fontSize: "10px", fontFamily: "var(--font-mono)", color: idea.duration === o.value ? "var(--accent)" : "var(--muted)" }}>{o.sub}</div>
+                </Chip>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <Label>Tono</Label>
+            <div style={{ display: "flex", gap: "var(--sp-2)" }}>
+              {TONE_OPTIONS.map((o) => (
+                <Chip key={o.value} active={idea.tone === o.value}
+                  onClick={() => dispatch({ type: "SET_STUDIO_IDEA", payload: { tone: o.value } })}>
+                  <div style={{ fontSize: "12px", fontWeight: 600, color: idea.tone === o.value ? "var(--accent)" : "var(--text)" }}>{o.label}</div>
+                </Chip>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <Label>Idioma</Label>
+            <div style={{ display: "flex", gap: "var(--sp-2)" }}>
+              {LANG_OPTIONS.map((o) => (
+                <Chip key={o.value} active={idea.language === o.value}
+                  onClick={() => dispatch({ type: "SET_STUDIO_IDEA", payload: { language: o.value } })}>
+                  <div style={{ fontSize: "12px", fontWeight: 600, color: idea.language === o.value ? "var(--accent)" : "var(--text)" }}>{o.label}</div>
+                </Chip>
+              ))}
+            </div>
+          </div>
+
+          <Button variant="primary" size="lg" onClick={handleGenerateScript} disabled={!idea.topic.trim()} style={{ width: "100%" }}>
+            Generar Guion
+          </Button>
+        </Card>
+      )}
+
+      {/* ── STEP 2: Script ── */}
+      {!loading && step === 2 && (
+        <div style={{ display: "flex", flexDirection: "column", gap: "var(--sp-4)" }}>
+          <Card>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "var(--sp-3)" }}>
+              <Label style={{ marginBottom: 0 }}>Guion generado</Label>
+              <Badge color="muted">{script.segments?.length || 0} segmentos</Badge>
+            </div>
+            <textarea
+              rows={10}
+              value={script.text}
+              onChange={(e) => dispatch({ type: "SET_STUDIO_SCRIPT", payload: { text: e.target.value } })}
+              style={taStyle}
+              onFocus={(e) => (e.target.style.borderColor = "var(--accent-border)")}
+              onBlur={(e) => (e.target.style.borderColor = "var(--border)")}
+            />
+          </Card>
+
+          <div style={{ display: "flex", gap: "var(--sp-3)" }}>
+            <Button variant="ghost" size="md" onClick={() => goStep(1)}>Volver</Button>
+            <div style={{ flex: 1 }} />
+            <Button variant="secondary" size="md" onClick={handleGenerateScript}>Regenerar</Button>
+            <Button variant="primary" size="md" onClick={handleGenerateEDL} disabled={!script.text}>
+              Generar EDL
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {/* ── STEP 3: EDL Timeline ── */}
+      {!loading && step === 3 && edl && (
+        <div style={{ display: "flex", flexDirection: "column", gap: "var(--sp-4)" }}>
+          {/* Summary bar */}
+          <div style={{ display: "flex", alignItems: "center", gap: "var(--sp-3)", padding: "var(--sp-2) var(--sp-4)", background: "var(--panel)", borderRadius: "var(--radius-md)", border: "1px solid var(--border-subtle)" }}>
+            <span style={{ fontFamily: "var(--font-mono)", fontSize: "12px", color: "var(--text-secondary)", fontWeight: 600 }}>
+              {edl.segments?.length || 0} segmentos
+            </span>
+            <span style={{ color: "var(--dim)", fontSize: "10px" }}>&middot;</span>
+            <span style={{ fontFamily: "var(--font-mono)", fontSize: "12px", color: "var(--accent)" }}>
+              {edl.duration_sec}s
+            </span>
+            <Badge color="muted">{edl.title}</Badge>
+          </div>
+
+          {/* Timeline */}
+          <div style={{ display: "flex", flexDirection: "column", gap: "var(--sp-2)", maxHeight: "calc(100vh - 320px)", overflowY: "auto", paddingRight: "var(--sp-1)" }}>
+            {(edl.segments || []).map((seg, i) => (
+              <TimelineRow
+                key={seg.id}
+                segment={seg}
+                index={i}
+                selected={seg.id === selectedSeg}
+                onSelect={() => setSelectedSeg(seg.id === selectedSeg ? null : seg.id)}
+              />
+            ))}
+          </div>
+
+          <div style={{ display: "flex", gap: "var(--sp-3)" }}>
+            <Button variant="ghost" size="md" onClick={() => goStep(2)}>Volver</Button>
+            <div style={{ flex: 1 }} />
+            <Button variant="secondary" size="md" onClick={() => {
+              const json = JSON.stringify(edl, null, 2);
+              const blob = new Blob([json], { type: "application/json" });
+              const url = URL.createObjectURL(blob);
+              const a = document.createElement("a"); a.href = url; a.download = "edl.json"; a.click();
+              URL.revokeObjectURL(url);
+              showToast("EDL exportado");
+            }}>
+              Export EDL
+            </Button>
+            <Button variant="primary" size="md" onClick={() => {
+              if (ttsOk) {
+                handleGenerateVoice();
+              } else {
+                goStep(5);
+              }
+            }}>
+              {ttsOk ? "Generar Voz" : "Ir a Export"}
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {/* ── STEP 4: Voice ── */}
+      {!loading && step === 4 && (
+        <div style={{ display: "flex", flexDirection: "column", gap: "var(--sp-4)" }}>
+          <Card>
+            <Label>Audio generado</Label>
+            {voice.audioUrl ? (
+              <audio controls src={voice.audioUrl} style={{ width: "100%", marginTop: "var(--sp-2)" }} />
+            ) : (
+              <div style={{ fontSize: "12px", color: "var(--muted)", padding: "var(--sp-4)" }}>
+                No se genero audio. Configura ElevenLabs en Settings.
+              </div>
+            )}
+          </Card>
+          <div style={{ display: "flex", gap: "var(--sp-3)" }}>
+            <Button variant="ghost" size="md" onClick={() => goStep(3)}>Volver</Button>
+            <div style={{ flex: 1 }} />
+            <Button variant="primary" size="md" onClick={() => goStep(5)}>
+              Ir a Export
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {/* ── STEP 5: Export Pack ── */}
+      {!loading && step === 5 && (
+        <div style={{ display: "flex", flexDirection: "column", gap: "var(--sp-4)" }}>
+          <Card style={{ display: "flex", flexDirection: "column", gap: "var(--sp-3)" }}>
+            <Label>Export Pack</Label>
+            <div style={{ fontSize: "12px", color: "var(--text-secondary)", lineHeight: 1.6 }}>
+              Descarga un ZIP con todos los assets del proyecto:
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: "var(--sp-1)", padding: "var(--sp-3)", background: "var(--panel-2)", borderRadius: "var(--radius-md)" }}>
+              <FileEntry name="script.md" ok={!!script.text} />
+              <FileEntry name="edl.json" ok={!!edl} />
+              <FileEntry name="subtitles.srt" ok={!!edl?.segments?.length} />
+              <FileEntry name="shotlist.txt" ok={!!edl?.segments?.length} />
+              <FileEntry name="audio.mp3" ok={!!voice.audioUrl} />
+            </div>
+          </Card>
+
+          <div style={{ display: "flex", gap: "var(--sp-3)" }}>
+            <Button variant="ghost" size="md" onClick={() => goStep(edl ? 3 : 2)}>Volver</Button>
+            <div style={{ flex: 1 }} />
+            <Button variant="ghost" size="sm" onClick={handleSave}>Guardar proyecto</Button>
+            <Button variant="primary" size="lg" onClick={handleExportPack} disabled={!script.text && !edl}>
+              Descargar ZIP
+            </Button>
           </div>
         </div>
       )}
@@ -310,13 +397,20 @@ function SceneCard({ scene, onUpdate }) {
   );
 }
 
-/* ── Small helpers ── */
-function Label({ children }) {
-  return <div style={{ fontSize: "10px", fontWeight: 700, fontFamily: "var(--font-body)", color: "var(--dim)", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: "var(--sp-2)" }}>{children}</div>;
+/* ── Helper components ── */
+
+function Label({ children, style: extra }) {
+  return (
+    <div style={{
+      fontSize: "10px", fontWeight: 700, color: "var(--dim)",
+      textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: "var(--sp-2)",
+      ...extra,
+    }}>
+      {children}
+    </div>
+  );
 }
-function Field({ label, children }) {
-  return <div><div style={{ fontSize: "10px", fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: "var(--sp-1)" }}>{label}</div>{children}</div>;
-}
+
 function Chip({ active, onClick, children }) {
   return (
     <div onClick={onClick} style={{
@@ -328,9 +422,21 @@ function Chip({ active, onClick, children }) {
   );
 }
 
-const inpStyle = {
-  width: "100%", fontFamily: "var(--font-body)", fontSize: "12px", color: "var(--text)",
-  background: "var(--panel-2)", border: "1px solid var(--border)", borderRadius: "var(--radius-sm)",
-  padding: "var(--sp-2) var(--sp-3)", outline: "none", boxSizing: "border-box",
+function FileEntry({ name, ok }) {
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: "var(--sp-2)", fontSize: "11px", fontFamily: "var(--font-mono)" }}>
+      <span style={{ color: ok ? "var(--success)" : "var(--dim)" }}>{ok ? "\u2713" : "\u2013"}</span>
+      <span style={{ color: ok ? "var(--text-secondary)" : "var(--dim)" }}>{name}</span>
+    </div>
+  );
+}
+
+function delay(ms) { return new Promise((r) => setTimeout(r, ms)); }
+
+const taStyle = {
+  width: "100%", resize: "vertical", fontFamily: "var(--font-mono)", fontSize: "12px",
+  lineHeight: 1.75, color: "var(--text)", background: "var(--panel-2)",
+  border: "1px solid var(--border)", borderRadius: "var(--radius-md)",
+  padding: "var(--sp-3) var(--sp-4)", outline: "none", boxSizing: "border-box",
+  transition: "border-color var(--transition-fast)",
 };
-const taStyle = { ...inpStyle, resize: "vertical", lineHeight: 1.6, minHeight: 48 };

@@ -1,5 +1,6 @@
 /**
  * Export history — persists last N exports in localStorage.
+ * + Helper functions for API key checks.
  */
 
 const STORAGE_KEY = "celeste-exports";
@@ -36,4 +37,22 @@ export function deleteExport(id) {
 
 export function clearExports() {
   localStorage.removeItem(STORAGE_KEY);
+}
+
+/* ── API key helpers ── */
+
+/**
+ * Check if LLM API keys are configured.
+ */
+export function hasApiKeys(settings) {
+  if (!settings) return false;
+  if (settings.llmProvider === "anthropic") return !!settings.anthropicKey;
+  return !!settings.openaiKey;
+}
+
+/**
+ * Check if TTS API key is configured.
+ */
+export function hasTtsKey(settings) {
+  return !!settings?.elevenlabsKey;
 }

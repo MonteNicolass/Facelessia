@@ -62,7 +62,7 @@ export default function Shell({ children }) {
               CELESTE
             </div>
             <div style={{ fontSize: "10px", color: "var(--dim)", letterSpacing: "0.5px", marginTop: "3px" }}>
-              editor v0.8
+              mvp v0.9
             </div>
           </div>
 
@@ -71,7 +71,7 @@ export default function Shell({ children }) {
           </div>
 
           <div style={{ padding: "var(--sp-3) var(--sp-4)", borderTop: "1px solid var(--border-subtle)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-            <span style={{ fontSize: "10px", color: "var(--dim)", fontFamily: "var(--font-mono)" }}>v0.8</span>
+            <span style={{ fontSize: "10px", color: "var(--dim)", fontFamily: "var(--font-mono)" }}>v0.9</span>
             <div style={{ display: "flex", alignItems: "center", gap: "5px", fontSize: "10px", color: "var(--dim)" }}>
               <span style={{ width: 6, height: 6, borderRadius: "var(--radius-full)", background: "#4ade80", display: "inline-block", boxShadow: "0 0 6px rgba(74,222,128,0.4)" }} />
               local
