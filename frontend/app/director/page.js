@@ -12,9 +12,10 @@ import Textarea from "@/components/ui/Textarea";
 import Link from "next/link";
 
 const PRESETS = [
-  { id: "epic", label: "Short Épico" },
-  { id: "educational", label: "Educativo" },
-  { id: "calm", label: "Storytelling Calmado" },
+  { id: "info", label: "INFO" },
+  { id: "story", label: "STORY" },
+  { id: "data", label: "DATA" },
+  { id: "neutral", label: "NEUTRAL" },
 ];
 
 const CHAR_WARNING = 3000;
@@ -31,7 +32,7 @@ Los científicos descubrieron que incluso a los 90 años podés crear nuevas neu
 Tu cerebro nunca deja de evolucionar.
 Nunca es tarde para cambiar.
 El límite no está en tu edad.
-Está en tu decisión de seguir aprendiendo.`;  // ~500 chars, 11 líneas
+Está en tu decisión de seguir aprendiendo.`;
 
 class ErrorBoundary extends Component {
   constructor(props) {
@@ -75,7 +76,7 @@ function DirectorPageContent() {
   const [decisions, setDecisions] = useState([]);
   const [loading, setLoading] = useState(false);
   const [toast, setToast] = useState(null);
-  const [preset, setPreset] = useState("epic");
+  const [preset, setPreset] = useState("neutral");
   const [errorState, setErrorState] = useState(null);
   const [abortController, setAbortController] = useState(null);
 
@@ -89,24 +90,24 @@ function DirectorPageContent() {
       const saved = localStorage.getItem("director_last_analysis");
       if (saved) {
         const parsed = JSON.parse(saved);
-        // Version check - solo cargar si es v1.0 o superior
-        if (parsed?.version === "1.0") {
+        if (parsed?.version === "2.0") {
           const savedScript = parsed?.script || "";
-          const savedPreset = parsed?.preset || "epic";
-          const savedDecisionsRaw = Array.isArray(parsed?.decisionsRaw) ? parsed.decisionsRaw : [];
+          const savedPreset = parsed?.preset || "neutral";
+          const savedDecisions = Array.isArray(parsed?.decisions) ? parsed.decisions : [];
 
           setScript(savedScript);
           setPreset(savedPreset);
-
-          // Re-aplicar preset a las decisiones crudas
-          if (savedDecisionsRaw.length > 0) {
-            const processedDecisions = applyPreset(savedDecisionsRaw, savedPreset);
-            setDecisions(processedDecisions);
-          }
+          setDecisions(savedDecisions);
         }
       }
     } catch {}
   }, []);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem("director_preset", preset);
+    } catch {}
+  }, [preset]);
 
   async function handleAnalyze() {
     if (!script?.trim()) {
@@ -114,7 +115,6 @@ function DirectorPageContent() {
       return;
     }
 
-    // Validación de mínimo caracteres
     if (script.length < CHAR_MIN) {
       setErrorState({
         type: "too_short",
@@ -124,7 +124,6 @@ function DirectorPageContent() {
       return;
     }
 
-    // Validación de límite de caracteres
     if (script.length > CHAR_LIMIT) {
       setErrorState({
         type: "char_limit",
@@ -143,7 +142,6 @@ function DirectorPageContent() {
       return;
     }
 
-    // Crear AbortController para poder cancelar
     const controller = new AbortController();
     setAbortController(controller);
 
@@ -152,25 +150,22 @@ function DirectorPageContent() {
     setErrorState(null);
 
     try {
-      const rawDecisions = await analyzeWithClaudeRetry(script, claudeKey, controller.signal);
-      const processedDecisions = applyPreset(rawDecisions, preset);
-      setDecisions(processedDecisions);
+      const rawDecisions = await analyzeWithClaudeRetry(script, preset, claudeKey, controller.signal);
+      setDecisions(rawDecisions);
 
-      // Guardar con versión + timestamp + decisiones crudas
       localStorage.setItem(
         "director_last_analysis",
         JSON.stringify({
-          version: "1.0",
+          version: "2.0",
           script,
           preset,
-          decisionsRaw: rawDecisions,
+          decisions: rawDecisions,
           timestamp: new Date().toISOString(),
         })
       );
 
       showToast("Análisis completado");
     } catch (err) {
-      // Si fue cancelado, no mostrar error
       if (err?.name === "AbortError") {
         showToast("Análisis cancelado");
         return;
@@ -211,7 +206,6 @@ function DirectorPageContent() {
   function handleLoadExample() {
     setScript(DEMO_SCRIPT);
     setErrorState(null);
-    // Auto-ejecutar análisis después de cargar el ejemplo
     setTimeout(() => {
       handleAnalyze();
     }, 100);
@@ -261,7 +255,6 @@ function DirectorPageContent() {
   }
 
   function estimateDuration(decisions) {
-    // Extraer último timestamp (ej: "45-50s" → 50)
     const lastDecision = decisions[decisions.length - 1];
     const timeStr = lastDecision?.t || "0-0s";
     const match = timeStr.match(/(\d+)s$/);
@@ -471,8 +464,7 @@ function DirectorPageContent() {
               borderRadius: "var(--radius-sm)",
             }}
           >
-            <strong style={{ color: "var(--text-secondary)" }}>Tip:</strong> El Director analiza tu guion
-            con Claude y aplica el preset editorial seleccionado.
+            <strong style={{ color: "var(--text-secondary)" }}>Preset activo:</strong> {preset.toUpperCase()}
           </div>
         </Card>
 
@@ -681,14 +673,49 @@ function PresetChip({ active, onClick, label }) {
   );
 }
 
-async function analyzeWithClaude(script, apiKey, signal) {
-  const systemPrompt = `Sos un director de shorts/reels. Analizá el guion y devolvé SOLO un array JSON (sin markdown).
+function buildSystemPrompt(preset) {
+  const baseRules = `Sos un director de shorts/reels. Analizá el guion y devolvé SOLO un array JSON (sin markdown).
 
 Formato: [{ "t": "0-3s", "motion": "zoom_in", "broll": "persona con celular de noche", "note": "hook fuerte" }]
 
-Motions: zoom_in, zoom_out, pan_left, pan_right, ken_burns, static
-B-roll: específico y buscable
-Note: por qué funciona editorialmente`;
+Motions disponibles: zoom_in, zoom_out, pan_left, pan_right, ken_burns, static`;
+
+  const presetRules = {
+    info: `
+PRESET: INFO
+Ritmo: medio, estable
+Claridad editorial: prioridad máxima
+Motion: solo para conceptos clave, sobrio
+B-roll: contextual, específico, sin dramatismo
+Música sugerida: baja, neutral, no invasiva`,
+
+    story: `
+PRESET: STORY
+Ritmo: variable, con pausas intencionales
+Énfasis: emocional, narrativo
+Motion: para momentos de impacto o transición emocional
+B-roll: narrativo, evocativo, con carga visual
+Música sugerida: crescendos, builds, curva emocional`,
+
+    data: `
+PRESET: DATA
+Ritmo: rápido, dinámico
+Motion: frecuente, especialmente para números/stats
+B-roll: mínimo, solo si refuerza datos
+Cortes: secos, directos
+Música sugerida: rítmica, constante, energética`,
+
+    neutral: `
+PRESET: NEUTRAL
+Balance general entre ritmo, claridad y impacto
+Decisiones editoriales caso a caso según contenido`,
+  };
+
+  return baseRules + "\n" + (presetRules[preset] || presetRules.neutral);
+}
+
+async function analyzeWithClaude(script, preset, apiKey, signal) {
+  const systemPrompt = buildSystemPrompt(preset);
 
   const res = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
@@ -703,7 +730,7 @@ Note: por qué funciona editorialmente`;
       system: systemPrompt,
       messages: [{ role: "user", content: script }],
     }),
-    signal, // AbortController signal
+    signal,
   });
 
   if (!res.ok) {
@@ -725,57 +752,28 @@ Note: por qué funciona editorialmente`;
   return decisions;
 }
 
-async function analyzeWithClaudeRetry(script, apiKey, signal, maxRetries = 2) {
+async function analyzeWithClaudeRetry(script, preset, apiKey, signal, maxRetries = 2) {
   let lastError = null;
 
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
     try {
-      return await analyzeWithClaude(script, apiKey, signal);
+      return await analyzeWithClaude(script, preset, apiKey, signal);
     } catch (err) {
       lastError = err;
 
-      // Si fue cancelado, lanzar inmediatamente
       if (err?.name === "AbortError") throw err;
 
-      // Solo reintentar en rate limit (429)
       if (err?.code === 429 && attempt < maxRetries) {
-        const backoffMs = Math.pow(2, attempt) * 1000; // 1s, 2s
+        const backoffMs = Math.pow(2, attempt) * 1000;
         await new Promise((resolve) => setTimeout(resolve, backoffMs));
         continue;
       }
 
-      // Otros errores o max retries alcanzado
       throw err;
     }
   }
 
   throw lastError;
-}
-
-function applyPreset(decisions, preset) {
-  const presetConfig = {
-    epic: {
-      motions: { zoom_out: "zoom_in", pan_left: "zoom_in", pan_right: "zoom_in", static: "ken_burns" },
-      notePrefix: "Impacto",
-    },
-    educational: {
-      motions: { zoom_in: "pan_left", zoom_out: "pan_right", static: "ken_burns" },
-      notePrefix: "Explicativo",
-    },
-    calm: {
-      motions: { zoom_in: "ken_burns", zoom_out: "static", pan_left: "ken_burns", pan_right: "static" },
-      notePrefix: "Reflexivo",
-    },
-  };
-
-  const config = presetConfig[preset];
-  if (!config) return decisions;
-
-  return decisions.map((d) => {
-    const newMotion = config.motions[d.motion] || d.motion;
-    const newNote = `${config.notePrefix} — ${d.note}`;
-    return { ...d, motion: newMotion, note: newNote };
-  });
 }
 
 function downloadFile(content, filename, type) {
