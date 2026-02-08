@@ -9,7 +9,6 @@ import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
 import Badge from "@/components/ui/Badge";
 import Textarea from "@/components/ui/Textarea";
-import EmptyState from "@/components/ui/EmptyState";
 import Link from "next/link";
 
 const PRESETS = [
@@ -20,6 +19,19 @@ const PRESETS = [
 
 const CHAR_WARNING = 3000;
 const CHAR_LIMIT = 5000;
+const CHAR_MIN = 50;
+
+const DEMO_SCRIPT = `¿Sabías que tu cerebro puede procesar una imagen en solo 13 milisegundos?
+Mientras leés esto, tu mente está creando conexiones a velocidad luz.
+Pero acá viene lo loco.
+Cada vez que aprendés algo nuevo, tu cerebro físicamente cambia.
+Se llama neuroplasticidad.
+Es como un músculo que se fortalece con el uso.
+Los científicos descubrieron que incluso a los 90 años podés crear nuevas neuronas.
+Tu cerebro nunca deja de evolucionar.
+Nunca es tarde para cambiar.
+El límite no está en tu edad.
+Está en tu decisión de seguir aprendiendo.`;  // ~500 chars, 11 líneas
 
 class ErrorBoundary extends Component {
   constructor(props) {
@@ -65,6 +77,7 @@ function DirectorPageContent() {
   const [toast, setToast] = useState(null);
   const [preset, setPreset] = useState("epic");
   const [errorState, setErrorState] = useState(null);
+  const [abortController, setAbortController] = useState(null);
 
   function showToast(msg) {
     setToast(msg);
@@ -101,6 +114,16 @@ function DirectorPageContent() {
       return;
     }
 
+    // Validación de mínimo caracteres
+    if (script.length < CHAR_MIN) {
+      setErrorState({
+        type: "too_short",
+        message: "Necesitás al menos 3–4 líneas de guion",
+      });
+      showToast("Guion muy corto");
+      return;
+    }
+
     // Validación de límite de caracteres
     if (script.length > CHAR_LIMIT) {
       setErrorState({
@@ -120,12 +143,16 @@ function DirectorPageContent() {
       return;
     }
 
+    // Crear AbortController para poder cancelar
+    const controller = new AbortController();
+    setAbortController(controller);
+
     setLoading(true);
     setDecisions([]);
     setErrorState(null);
 
     try {
-      const rawDecisions = await analyzeWithClaudeRetry(script, claudeKey);
+      const rawDecisions = await analyzeWithClaudeRetry(script, claudeKey, controller.signal);
       const processedDecisions = applyPreset(rawDecisions, preset);
       setDecisions(processedDecisions);
 
@@ -143,6 +170,12 @@ function DirectorPageContent() {
 
       showToast("Análisis completado");
     } catch (err) {
+      // Si fue cancelado, no mostrar error
+      if (err?.name === "AbortError") {
+        showToast("Análisis cancelado");
+        return;
+      }
+
       const errorCode = err?.code;
       if (errorCode === 401) {
         setErrorState({
@@ -163,22 +196,76 @@ function DirectorPageContent() {
       showToast("Error: " + (err?.message || "Desconocido"));
     } finally {
       setLoading(false);
+      setAbortController(null);
     }
+  }
+
+  function handleCancelAnalysis() {
+    if (abortController) {
+      abortController.abort();
+      setAbortController(null);
+      setLoading(false);
+    }
+  }
+
+  function handleLoadExample() {
+    setScript(DEMO_SCRIPT);
+    setErrorState(null);
+    // Auto-ejecutar análisis después de cargar el ejemplo
+    setTimeout(() => {
+      handleAnalyze();
+    }, 100);
   }
 
   function handleExportTXT() {
     if (!Array.isArray(decisions) || decisions.length === 0) return;
 
-    const lines = ["DIRECTOR IA — MAPA DE EDICIÓN", "=".repeat(50), ""];
+    const shotlistContent = generateShotlistContent(decisions, preset);
+    downloadFile(shotlistContent, "shotlist-director.txt", "text/plain");
+    showToast("Shotlist exportado");
+  }
+
+  async function handleCopyShotlist() {
+    if (!Array.isArray(decisions) || decisions.length === 0) return;
+
+    const shotlistContent = generateShotlistContent(decisions, preset);
+    try {
+      await navigator.clipboard.writeText(shotlistContent);
+      showToast("Shotlist copiado");
+    } catch {
+      showToast("Error al copiar");
+    }
+  }
+
+  function generateShotlistContent(decisions, preset) {
+    const timestamp = new Date().toISOString().split("T")[0];
+    const totalDuration = estimateDuration(decisions);
+
+    const lines = [
+      "DIRECTOR IA — SHOTLIST PRO",
+      "=".repeat(60),
+      `Preset: ${preset.toUpperCase()} | Duración estimada: ${totalDuration}s | ${timestamp}`,
+      "",
+    ];
+
     decisions.forEach((d, i) => {
-      lines.push(`${i + 1}. ${d?.t || "—"}`);
-      lines.push(`   Motion: ${d?.motion || "—"}`);
-      lines.push(`   B-roll: ${d?.broll || "—"}`);
-      lines.push(`   Nota: ${d?.note || "—"}`);
-      lines.push("");
+      const motionLabel = (d?.motion || "static").toUpperCase().replace(/_/g, " ");
+      lines.push(`SHOT ${i + 1} | ${d?.t || "—"} | ${motionLabel}`);
+      lines.push(`B-roll: ${d?.broll || "—"}`);
+      lines.push(`Motion: ${d?.motion || "static"}`);
+      lines.push(`Nota: ${d?.note || "—"}`);
+      lines.push("---");
     });
-    downloadFile(lines.join("\n"), "mapa-edicion.txt", "text/plain");
-    showToast("TXT exportado");
+
+    return lines.join("\n");
+  }
+
+  function estimateDuration(decisions) {
+    // Extraer último timestamp (ej: "45-50s" → 50)
+    const lastDecision = decisions[decisions.length - 1];
+    const timeStr = lastDecision?.t || "0-0s";
+    const match = timeStr.match(/(\d+)s$/);
+    return match ? parseInt(match[1], 10) : 60;
   }
 
   function handleExportJSON() {
@@ -199,7 +286,9 @@ function DirectorPageContent() {
   const charCount = script.length;
   const isOverWarning = charCount > CHAR_WARNING;
   const isOverLimit = charCount > CHAR_LIMIT;
-  const canAnalyze = script?.trim() && !isOverLimit && !loading;
+  const isTooShort = charCount > 0 && charCount < CHAR_MIN;
+  const isSingleLine = script.trim() && !script.includes("\n");
+  const canAnalyze = script?.trim() && !isOverLimit && !isTooShort && !loading;
 
   return (
     <div style={{ position: "relative" }}>
@@ -235,8 +324,11 @@ function DirectorPageContent() {
       <Topbar title="Director IA" badge="v1">
         {hasDecisions && (
           <>
+            <Button variant="ghost" size="sm" onClick={handleCopyShotlist}>
+              Copiar Shotlist
+            </Button>
             <Button variant="ghost" size="sm" onClick={handleExportTXT}>
-              Export TXT
+              Descargar TXT
             </Button>
             <Button variant="ghost" size="sm" onClick={handleExportJSON}>
               Export JSON
@@ -260,23 +352,41 @@ function DirectorPageContent() {
             <div
               style={{
                 display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
+                flexDirection: "column",
+                gap: "var(--sp-1)",
                 marginTop: "var(--sp-2)",
                 fontSize: "11px",
               }}
             >
-              <span
-                style={{
-                  color: isOverLimit ? "var(--danger)" : isOverWarning ? "var(--warning)" : "var(--dim)",
-                  fontWeight: isOverWarning ? 600 : 400,
-                }}
-              >
-                {charCount} / {CHAR_LIMIT} caracteres
-              </span>
-              {isOverLimit && (
-                <span style={{ color: "var(--danger)", fontWeight: 600 }}>
-                  Acortá el guion o dividilo en partes
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <span
+                  style={{
+                    color: isOverLimit
+                      ? "var(--danger)"
+                      : isTooShort
+                      ? "var(--danger)"
+                      : isOverWarning
+                      ? "var(--warning)"
+                      : "var(--dim)",
+                    fontWeight: isOverWarning || isTooShort ? 600 : 400,
+                  }}
+                >
+                  {charCount} / {CHAR_LIMIT} caracteres
+                </span>
+                {isOverLimit && (
+                  <span style={{ color: "var(--danger)", fontWeight: 600 }}>
+                    Acortá el guion o dividilo en partes
+                  </span>
+                )}
+                {isTooShort && (
+                  <span style={{ color: "var(--danger)", fontWeight: 600 }}>
+                    Necesitás al menos 3–4 líneas
+                  </span>
+                )}
+              </div>
+              {isSingleLine && !isTooShort && (
+                <span style={{ color: "var(--warning)", fontSize: "10px", fontStyle: "italic" }}>
+                  Tip: separalo en 3–4 líneas para mejores cortes
                 </span>
               )}
             </div>
@@ -368,52 +478,68 @@ function DirectorPageContent() {
 
         <div style={{ display: "flex", flexDirection: "column", gap: "var(--sp-3)", minWidth: 0 }}>
           {loading && (
-            <div
-              style={{
-                display: "flex",
-                flexDirection: "column",
-                alignItems: "center",
-                justifyContent: "center",
-                minHeight: 300,
-                gap: "var(--sp-4)",
-              }}
-            >
+            <Card style={{ padding: "var(--sp-5)", textAlign: "center" }}>
               <div
                 style={{
-                  width: 40,
-                  height: 40,
-                  borderRadius: "var(--radius-full)",
-                  border: "3px solid var(--border)",
-                  borderTopColor: "var(--accent)",
-                  animation: "spin 0.8s linear infinite",
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "center",
+                  gap: "var(--sp-4)",
                 }}
-              />
-              <span style={{ fontSize: "13px", fontWeight: 600, color: "var(--text-secondary)" }}>
-                Claude analizando el guion...
-              </span>
-              <span style={{ fontSize: "11px", color: "var(--dim)" }}>Generando decisiones editoriales</span>
-            </div>
+              >
+                <div
+                  style={{
+                    width: 40,
+                    height: 40,
+                    borderRadius: "var(--radius-full)",
+                    border: "3px solid var(--border)",
+                    borderTopColor: "var(--accent)",
+                    animation: "spin 0.8s linear infinite",
+                  }}
+                />
+                <div>
+                  <div style={{ fontSize: "14px", fontWeight: 600, color: "var(--text)", marginBottom: "var(--sp-1)" }}>
+                    Analizando con Claude (~15–20 segundos)
+                  </div>
+                  <div style={{ fontSize: "11px", color: "var(--muted)" }}>
+                    Estamos armando tu shotlist y motions
+                  </div>
+                </div>
+                <Button variant="ghost" size="sm" onClick={handleCancelAnalysis}>
+                  Cancelar
+                </Button>
+              </div>
+            </Card>
           )}
 
           {!loading && !hasDecisions && (
-            <EmptyState
-              icon={
+            <Card style={{ padding: "var(--sp-6)", textAlign: "center" }}>
+              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "var(--sp-4)" }}>
                 <svg
-                  width="28"
-                  height="28"
+                  width="32"
+                  height="32"
                   viewBox="0 0 24 24"
                   fill="none"
-                  stroke="currentColor"
+                  stroke="var(--dim)"
                   strokeWidth="1.5"
                   strokeLinecap="round"
                   strokeLinejoin="round"
                 >
                   <path d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z" />
                 </svg>
-              }
-              title="Sin análisis"
-              description="Pegá un guion y hace click en Analizar para obtener decisiones editoriales"
-            />
+                <div>
+                  <div style={{ fontSize: "15px", fontWeight: 600, color: "var(--text)", marginBottom: "var(--sp-1)" }}>
+                    Sin análisis
+                  </div>
+                  <div style={{ fontSize: "12px", color: "var(--text-secondary)", marginBottom: "var(--sp-3)" }}>
+                    Pegá un guion y hace click en Analizar para obtener decisiones editoriales
+                  </div>
+                </div>
+                <Button variant="ghost" size="sm" onClick={handleLoadExample}>
+                  Ver ejemplo
+                </Button>
+              </div>
+            </Card>
           )}
 
           {!loading && hasDecisions && (
@@ -555,7 +681,7 @@ function PresetChip({ active, onClick, label }) {
   );
 }
 
-async function analyzeWithClaude(script, apiKey) {
+async function analyzeWithClaude(script, apiKey, signal) {
   const systemPrompt = `Sos un director de shorts/reels. Analizá el guion y devolvé SOLO un array JSON (sin markdown).
 
 Formato: [{ "t": "0-3s", "motion": "zoom_in", "broll": "persona con celular de noche", "note": "hook fuerte" }]
@@ -577,6 +703,7 @@ Note: por qué funciona editorialmente`;
       system: systemPrompt,
       messages: [{ role: "user", content: script }],
     }),
+    signal, // AbortController signal
   });
 
   if (!res.ok) {
@@ -598,14 +725,17 @@ Note: por qué funciona editorialmente`;
   return decisions;
 }
 
-async function analyzeWithClaudeRetry(script, apiKey, maxRetries = 2) {
+async function analyzeWithClaudeRetry(script, apiKey, signal, maxRetries = 2) {
   let lastError = null;
 
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
     try {
-      return await analyzeWithClaude(script, apiKey);
+      return await analyzeWithClaude(script, apiKey, signal);
     } catch (err) {
       lastError = err;
+
+      // Si fue cancelado, lanzar inmediatamente
+      if (err?.name === "AbortError") throw err;
 
       // Solo reintentar en rate limit (429)
       if (err?.code === 429 && attempt < maxRetries) {
