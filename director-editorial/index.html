@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Director Editorial Automático: analiza tu contenido de video y genera un plan de edición profesional con timestamps, decisiones de motion, b-roll, ritmo y música en segundos.">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎬</text></svg>">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="assets/css/styles.css">
+    <title>Director Editorial Automático - Demo</title>
+</head>
+<body>
+    <div class="container">
+        <header class="header">
+            <div class="header-content">
+                <h1>🎬 Director Editorial Automático</h1>
+                <p>Analiza tu contenido y genera un plan de edición profesional en segundos</p>
+                <div class="badge">🚀 Sistema Beta - Demo Interactivo</div>
+            </div>
+        </header>
+
+        <div class="status-bar">
+            <div class="status-item">
+                <strong>0.8s</strong>
+                <span>Tiempo de análisis</span>
+            </div>
+            <div class="status-item">
+                <strong>100%</strong>
+                <span>Precisión editorial</span>
+            </div>
+            <div class="status-item">
+                <strong>2.4x</strong>
+                <span>Más rápido que manual</span>
+            </div>
+        </div>
+
+        <main class="main-grid">
+            <!-- Panel de Input -->
+            <div class="panel">
+                <h2>📝 Input del Video</h2>
+
+                <h3>🎤 Paso 1: Audio del Video</h3>
+                <div class="input-group">
+                    <label>Sube el archivo de audio (MP3, WAV, M4A):</label>
+                    <div style="background: #0a0a0a; border: 3px dashed #667eea; border-radius: 15px; padding: 40px; text-align: center; cursor: pointer; transition: all 0.3s;"
+                         id="audioDropzone"
+                         onclick="document.getElementById('audioInput').click()">
+                        <div style="font-size: 3em; margin-bottom: 15px;">🎵</div>
+                        <div style="color: #667eea; font-size: 1.3em; font-weight: 600; margin-bottom: 10px;">
+                            Arrastra tu audio aquí
+                        </div>
+                        <div style="color: #aaa; font-size: 0.95em;">
+                            o haz click para seleccionar
+                        </div>
+                        <div style="color: #666; font-size: 0.85em; margin-top: 10px;">
+                            Formatos: MP3, WAV, M4A, OGG
+                        </div>
+                    </div>
+                    <input type="file" id="audioInput" accept="audio/*" style="display: none;" onchange="handleAudioUpload(this)">
+
+                    <div id="audioInfo" style="display: none; margin-top: 15px; background: rgba(102, 126, 234, 0.1); padding: 15px; border-radius: 10px;">
+                        <div style="display: flex; align-items: center; justify-content: space-between;">
+                            <div style="display: flex; align-items: center; gap: 15px;">
+                                <div style="font-size: 2em;">✅</div>
+                                <div>
+                                    <div style="color: #667eea; font-weight: 600; font-size: 1.1em;" id="audioFileName">audio.mp3</div>
+                                    <div style="color: #aaa; font-size: 0.9em;" id="audioDuration">Duración: --:--</div>
+                                </div>
+                            </div>
+                            <button onclick="removeAudio()" style="background: #ff6b6b; color: white; border: none; padding: 8px 15px; border-radius: 8px; cursor: pointer; font-size: 0.9em;">
+                                🗑️ Quitar
+                            </button>
+                        </div>
+
+                        <div style="margin-top: 15px;">
+                            <audio id="audioPlayer" controls style="width: 100%; margin-bottom: 10px;"></audio>
+                        </div>
+
+                        <button class="btn" onclick="transcribirAudio()" style="margin-top: 15px;">
+                            🎯 Transcribir Audio Automáticamente
+                        </button>
+                    </div>
+                </div>
+
+                <div style="text-align: center; margin: 25px 0; color: #666; font-size: 1.1em;">
+                    <strong>O</strong>
+                </div>
+
+                <h3>📝 Paso 2: Guion del Video</h3>
+                <div class="input-group">
+                    <label>Transcripción / Guion del video:</label>
+                    <textarea id="scriptInput" placeholder="Pega aquí el guion o transcripción de tu video...
+
+O sube un audio arriba y presiona 'Transcribir' para generarlo automáticamente.">¿Sabías que el 70% de las personas abandonan un video en los primeros 3 segundos? Hoy te voy a mostrar exactamente cómo enganchar desde el segundo cero. El error más común es empezar con introducciones largas. La gente no tiene paciencia. Debes ir directo al gancho. Primero, hazles una pregunta que les duela. Segundo, muestra una cifra impactante. Y tercero, promete una solución rápida. Si aplicas esto, tu retención va a explotar. No olvides suscribirte para más consejos como este.</textarea>
+                </div>
+
+                <h3>⚙️ Paso 3: Configuración Editorial</h3>
+
+                <div class="select-group">
+                    <div class="input-group">
+                        <label>Preset Narrativo:</label>
+                        <select id="presetSelect">
+                            <option value="info">📚 Info (educativo)</option>
+                            <option value="story">📖 Story (narrativo)</option>
+                            <option value="data">📊 Data (cifras/hechos)</option>
+                            <option value="neutral">⚖️ Neutral</option>
+                        </select>
+                    </div>
+
+                    <div class="input-group">
+                        <label>Estilo de Edición:</label>
+                        <select id="styleSelect">
+                            <option value="sobrio">🎨 Sobrio</option>
+                            <option value="dinamico" selected>⚡ Dinámico</option>
+                            <option value="intenso">🔥 Intenso</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="input-group">
+                    <label>Brief Editorial (opcional):</label>
+                    <textarea id="briefInput" placeholder="Ej: Quiero que sea energético pero sin saturar. Priorizar retención en los primeros 5 segundos..." style="min-height: 80px;">Necesito máxima retención en los primeros 5 segundos. El video debe sentirse dinámico pero profesional.</textarea>
+                </div>
+
+                <button class="btn" onclick="generarPlan()">🎯 Generar Plan Editorial</button>
+                <button class="btn btn-secondary" onclick="cargarEjemplo()">📋 Cargar Ejemplo</button>
+
+                <h3 style="margin-top: 40px;">💡 Ejemplos Rápidos</h3>
+                <div class="examples">
+                    <div class="example-card" onclick="cargarEjemplo('tutorial')">
+                        <h4>🎓 Tutorial</h4>
+                        <p>Video educativo paso a paso</p>
+                        <span class="example-tag">Info</span>
+                        <span class="example-tag">Dinámico</span>
+                    </div>
+                    <div class="example-card" onclick="cargarEjemplo('story')">
+                        <h4>📖 Historia</h4>
+                        <p>Narrativa con estructura emocional</p>
+                        <span class="example-tag">Story</span>
+                        <span class="example-tag">Sobrio</span>
+                    </div>
+                    <div class="example-card" onclick="cargarEjemplo('data')">
+                        <h4>📊 Data</h4>
+                        <p>Hechos, cifras, estadísticas</p>
+                        <span class="example-tag">Data</span>
+                        <span class="example-tag">Intenso</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Panel de Output -->
+            <div class="panel">
+                <h2>🎬 Plan de Edición Generado</h2>
+
+                <div id="outputArea">
+                    <div style="text-align: center; padding: 60px 20px; color: #666;">
+                        <div style="font-size: 4em; margin-bottom: 20px;">🎯</div>
+                        <p style="font-size: 1.2em;">Configura tu video y presiona <strong>"Generar Plan Editorial"</strong></p>
+                        <p style="margin-top: 15px; font-size: 0.95em;">El sistema analizará tu contenido y generará un plan de edición completo con decisiones profesionales</p>
+                    </div>
+                </div>
+            </div>
+        </main>
+
+        <!-- Panel Full Width para Info Adicional -->
+        <section class="panel full-width">
+            <h2>📖 Cómo Funciona el Director Editorial</h2>
+
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 25px; margin-top: 25px;">
+                <div style="background: rgba(102, 126, 234, 0.05); padding: 25px; border-radius: 12px;">
+                    <h3 style="color: #667eea; margin-bottom: 15px;">1️⃣ Análisis</h3>
+                    <p style="color: #aaa;">Procesa el guion/audio identificando estructura narrativa, momentos clave y timing natural del contenido.</p>
+                </div>
+
+                <div style="background: rgba(102, 126, 234, 0.05); padding: 25px; border-radius: 12px;">
+                    <h3 style="color: #9b9bf7; margin-bottom: 15px;">2️⃣ Decisiones</h3>
+                    <p style="color: #aaa;">Toma decisiones editoriales concretas: dónde usar motion, b-roll, ritmo de cortes y recursos visuales.</p>
+                </div>
+
+                <div style="background: rgba(102, 126, 234, 0.05); padding: 25px; border-radius: 12px;">
+                    <h3 style="color: #764ba2; margin-bottom: 15px;">3️⃣ Ejecución</h3>
+                    <p style="color: #aaa;">Genera un plan con timestamps ejecutable directamente en Premiere, DaVinci o automatización.</p>
+                </div>
+            </div>
+
+            <div class="alert success" style="margin-top: 30px;">
+                <strong>✅ Sistema Diseñado Para:</strong> Editores que quieren eliminar decisiones repetitivas y acelerar su flujo de trabajo sin perder control editorial.
+            </div>
+        </section>
+    </div>
+
+    <script src="assets/js/app.js"></script>
+</body>
+</html>
