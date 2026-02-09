@@ -12,7 +12,7 @@ __pycache__/
 
 # Outputs de video
 outputs/
-assets/
+/assets/
 
 # Node
 node_modules/
